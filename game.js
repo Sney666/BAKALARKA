@@ -9,60 +9,155 @@ const SVGs = {
 };
 
 const CARD_DB = [
-    { id: 1, name: "Viking Axe", type: "Melee", baseDmg: 3, baseCd: 4, unlocked: true, aim: 'ortho', desc: "Zásah 1 sousedního pole (ortogonálně)." },
-    { id: 2, name: "Wooden Club", type: "Melee", baseDmg: 2, baseCd: 5, unlocked: true, aim: 'ortho', desc: "Zásah a odhození o 1 pole." },
-    { id: 3, name: "Two-handed Hammer", type: "Melee", baseDmg: 4, baseCd: 6, unlocked: true, aim: 'ortho', desc: "Zásah 3 polí v oblouku." },
-    { id: 4, name: "Throwing Axe", type: "Ranged", baseDmg: 2, baseCd: 3, unlocked: true, aim: 'ortho', desc: "Projektil rovně, zasáhne prvního." },
-    { id: 5, name: "Hunting Bow", type: "Ranged", baseDmg: 3, baseCd: 5, unlocked: true, aim: 'diag', desc: "Projektil diagonálně, zasáhne prvního." },
-    { id: 6, name: "Heavy Spear", type: "Ranged", baseDmg: 4, baseCd: 6, unlocked: true, aim: 'ortho', desc: "Projme 2 nepřátele v řadě." },
-    { id: 7, name: "Bear Trap", type: "Special", baseDmg: 2, baseCd: 6, unlocked: true, aim: 'self', desc: "Položí past na tvé pole." },
-    { id: 8, name: "Boat Hook", type: "Special", baseDmg: 1, baseCd: 5, unlocked: true, aim: 'ortho', desc: "Přitáhne cíl na sousední pole." },
-    { id: 9, name: "Diagonal Dash", type: "Movement", baseDmg: 0, baseCd: 4, unlocked: true, aim: 'diag', desc: "Přesun 1 pole diagonálně." },
-    { id: 10, name: "Slide", type: "Movement", baseDmg: 0, baseCd: 5, unlocked: true, aim: 'ortho', desc: "Přesun 2 pole rovně." }
+    { id: 1, name: "Viking Axe", type: "Melee", baseDmg: 3, baseCd: 4, aim: 'ortho', desc: "Zásah 1 sousedního pole (ortogonálně)." },
+    { id: 2, name: "Wooden Club", type: "Melee", baseDmg: 2, baseCd: 5, aim: 'ortho', desc: "Zásah a odhození o 1 pole." },
+    { id: 3, name: "Two-handed Hammer", type: "Melee", baseDmg: 4, baseCd: 6, aim: 'ortho', desc: "Zásah 3 polí v oblouku." },
+    { id: 4, name: "Throwing Axe", type: "Ranged", baseDmg: 2, baseCd: 3, aim: 'ortho', desc: "Projektil rovně, zasáhne prvního." },
+    { id: 5, name: "Hunting Bow", type: "Ranged", baseDmg: 3, baseCd: 5, aim: 'diag', desc: "Projektil diagonálně, zasáhne prvního." },
+    { id: 6, name: "Heavy Spear", type: "Ranged", baseDmg: 4, baseCd: 6, aim: 'ortho', desc: "Projme 2 nepřátele v řadě." },
+    { id: 7, name: "Bear Trap", type: "Special", baseDmg: 2, baseCd: 6, aim: 'self', desc: "Položí past na tvé pole." },
+    { id: 8, name: "Boat Hook", type: "Special", baseDmg: 1, baseCd: 5, aim: 'ortho', desc: "Přitáhne cíl na sousední pole." },
+    { id: 9, name: "Diagonal Dash", type: "Movement", baseDmg: 0, baseCd: 4, aim: 'diag', desc: "Přesun 1 pole diagonálně." },
+    { id: 10, name: "Slide", type: "Movement", baseDmg: 0, baseCd: 5, aim: 'ortho', desc: "Přesun 2 pole rovně." }
+];
+
+// Odemknuté od začátku
+const INITIAL_CARDS = [1, 4, 7, 9];
+
+// Fronta odemykání zbraní
+const CARD_UNLOCK_QUEUE = [
+    { id: 2, price: 15 }, { id: 5, price: 20 }, { id: 8, price: 25 }, 
+    { id: 10, price: 25 }, { id: 3, price: 30 }, { id: 6, price: 35 }
+];
+
+// Fronta odemykání vylepšení
+const UPGRADE_QUEUE = [
+    { id: 'u1', name: 'Durability Training I', desc: '+1 max HP', price: 20 },
+    { id: 'u2', name: 'Swift Boots', desc: '-1 CD pro Movement', price: 30 },
+    { id: 'u3', name: 'Charisma', desc: '1. reroll v každé hře zdarma', price: 40 },
+    { id: 'u4', name: 'Melee Training I', desc: '+1 dmg pro Melee zbraně', price: 50 },
+    { id: 'u5', name: 'Tactical Master', desc: 'Akce Čekat snižuje CD navíc', price: 60 },
+    { id: 'u6', name: 'Ranged Training I', desc: '+1 dmg pro Ranged zbraně', price: 70 },
+    { id: 'u7', name: 'Speciality Master', desc: 'Viking Scream zraní (1 dmg)', price: 80 }
 ];
 
 const WAVES = [ [], 
-    ['pawn'], 
-    ['pawn', 'archer'], 
-    ['spearman', 'pawn'], 
-    ['spearman', 'archer'], 
-    ['pawn', 'pawn', 'shaman'], 
-    ['spearman', 'archer', 'archer'], 
-    ['pawn', 'pawn', 'pawn', 'archer', 'archer'], 
-    ['pawn', 'pawn', 'spearman', 'shaman'], 
-    ['pawn', 'shaman', 'spearman', 'archer', 'archer'], 
-    ['boss']
+    ['pawn'], ['pawn', 'archer'], ['spearman', 'pawn'], ['spearman', 'archer'], ['pawn', 'pawn', 'shaman'], 
+    ['spearman', 'archer', 'archer'], ['pawn', 'pawn', 'pawn', 'archer', 'archer'], ['pawn', 'pawn', 'spearman', 'shaman'], 
+    ['pawn', 'shaman', 'spearman', 'archer', 'archer'], ['boss']
 ];
 
 class Game {
     constructor() {
-        this.width = 5; this.height = 5; this.wave = 1;
-        this.state = 'DRAFT'; // DRAFT, PLAY, AIMING, GAMEOVER, VICTORY, REWARD_DRAFT, REWARD_UPGRADE
+        this.saveData = this.loadSave();
+        this.width = 5; this.height = 5;
+        this.state = 'MENU';
+        this.bindInput();
+        this.openMenu();
+    }
+
+    // --- Ukládání a Načítání ---
+    loadSave() {
+        const saved = localStorage.getItem('rogueCardsSave');
+        if (saved) return JSON.parse(saved);
+        return { coins: 0, unlockedCards: [...INITIAL_CARDS], unlockedUpgrades: [] };
+    }
+    saveGame() { localStorage.setItem('rogueCardsSave', JSON.stringify(this.saveData)); }
+    hasUpgrade(uid) { return this.saveData.unlockedUpgrades.includes(uid); }
+
+    // --- Obrazovky (Menu / Shop) ---
+    switchScreen(screenId) {
+        document.querySelectorAll('.screen').forEach(s => { s.classList.remove('active'); s.classList.add('hidden'); });
+        document.getElementById(screenId).classList.remove('hidden');
+        document.getElementById(screenId).classList.add('active');
+    }
+    openMenu() {
+        this.state = 'MENU';
+        document.getElementById('menu-coins').innerText = this.saveData.coins;
+        this.switchScreen('main-menu');
+    }
+    openShop() {
+        this.state = 'SHOP';
+        this.renderShop();
+        this.switchScreen('shop-screen');
+    }
+    renderShop() {
+        document.getElementById('shop-coins').innerText = this.saveData.coins;
         
+        // Zbraně (První 2 zamčené)
+        const lockedCards = CARD_UNLOCK_QUEUE.filter(c => !this.saveData.unlockedCards.includes(c.id)).slice(0, 2);
+        const cardsCont = document.getElementById('shop-cards'); cardsCont.innerHTML = '';
+        if (lockedCards.length === 0) cardsCont.innerHTML = '<div style="color:#aaa;">Všechny zbraně zakoupeny.</div>';
+        lockedCards.forEach(item => {
+            let cardData = CARD_DB.find(c => c.id === item.id);
+            cardsCont.innerHTML += `
+                <div class="shop-item">
+                    <div class="shop-item-info">
+                        <div class="shop-item-name">${cardData.name} <span style="font-size:0.8rem; color:#888;">(${cardData.type})</span></div>
+                        <div class="shop-item-desc">${cardData.desc}</div>
+                    </div>
+                    <button class="buy-btn" ${this.saveData.coins < item.price ? 'disabled' : ''} onclick="game.buyCard(${item.id}, ${item.price})">${item.price} 🪙</button>
+                </div>
+            `;
+        });
+
+        // Upgrady (První 2 zamčené)
+        const lockedUpgrades = UPGRADE_QUEUE.filter(u => !this.saveData.unlockedUpgrades.includes(u.id)).slice(0, 2);
+        const upgCont = document.getElementById('shop-upgrades'); upgCont.innerHTML = '';
+        if (lockedUpgrades.length === 0) upgCont.innerHTML = '<div style="color:#aaa;">Všechna vylepšení zakoupena.</div>';
+        lockedUpgrades.forEach(u => {
+            upgCont.innerHTML += `
+                <div class="shop-item">
+                    <div class="shop-item-info">
+                        <div class="shop-item-name">${u.name}</div>
+                        <div class="shop-item-desc">${u.desc}</div>
+                    </div>
+                    <button class="buy-btn" ${this.saveData.coins < u.price ? 'disabled' : ''} onclick="game.buyUpgrade('${u.id}', ${u.price})">${u.price} 🪙</button>
+                </div>
+            `;
+        });
+    }
+    buyCard(id, price) {
+        if (this.saveData.coins >= price) { this.saveData.coins -= price; this.saveData.unlockedCards.push(id); this.saveGame(); this.renderShop(); }
+    }
+    buyUpgrade(id, price) {
+        if (this.saveData.coins >= price) { this.saveData.coins -= price; this.saveData.unlockedUpgrades.push(id); this.saveGame(); this.renderShop(); }
+    }
+
+    // --- Inicializace Hry ---
+    startNewGame() {
+        this.wave = 1;
         this.player = { x: 2, y: 2, hp: 5, maxHp: 5, coins: 0, name: "Viking", screamCd: 0, maxScreamCd: 6 };
+        // Aplikace Upgrade u1 (Max HP)
+        if (this.hasUpgrade('u1')) this.player.maxHp += 1;
+        this.player.hp = this.player.maxHp;
+
         this.enemies = []; this.enemyIdCounter = 1; this.traps = [];
-        
         this.deck = []; this.hand = []; this.prepared = []; this.maxPrepared = 4;
         this.draftSelection = []; this.aimingIndex = 0; this.aimTargetCells = [];
         this.hoverX = -1; this.hoverY = -1;
+        this.gameRerolls = 0; // Pro Upgrade u3 (Charisma)
         
-        this.rerollCost = 5; this.currentRewardCards = []; this.currentModifier = null;
-        
-        this.init();
+        this.switchScreen('game-wrapper');
+        this.startDraft();
     }
 
-    init() { this.bindInput(); this.startDraft(); }
-
-    createCardInstance(dbCard) { return { ...dbCard, cd: 0, uid: Math.random(), mods: [] }; }
+    createCardInstance(dbCard) { 
+        let card = { ...dbCard, cd: 0, uid: Math.random(), mods: [] }; 
+        // Aplikace permanentních upgradů
+        if (this.hasUpgrade('u2') && card.type === 'Movement') card.baseCd = Math.max(1, card.baseCd - 1);
+        if (this.hasUpgrade('u4') && card.type === 'Melee') card.baseDmg += 1;
+        if (this.hasUpgrade('u6') && card.type === 'Ranged') card.baseDmg += 1;
+        return card;
+    }
     getDmg(card) { return card.baseDmg + card.mods.filter(m=>m.type==='dmg').reduce((a,b)=>a+b.val, 0); }
     getMaxCd(card) { let val = card.baseCd + card.mods.filter(m=>m.type==='cd').reduce((a,b)=>a+b.val, 0); return Math.max(1, val); }
     hasPoison(card) { return card.mods.some(m=>m.type==='poison'); }
 
-    // --- SETUP VLN A NEPŘÁTEL ---
+    // --- SETUP VLN ---
     startWave(waveNum) {
         this.wave = waveNum; this.enemies = []; this.traps = [];
-        const spawnList = WAVES[waveNum];
-        spawnList.forEach(type => this.spawnEnemy(type, type==='archer' || type==='shaman'));
+        WAVES[waveNum].forEach(type => this.spawnEnemy(type, type==='archer' || type==='shaman'));
         this.state = 'PLAY'; this.render();
     }
 
@@ -84,33 +179,35 @@ class Game {
         else if (type === 'archer') { enemy.hp = 2; enemy.maxHp = 2; enemy.coins = 3; enemy.name = 'Archer'; enemy.svg = SVGs.archer; }
         else if (type === 'spearman') { enemy.hp = 4; enemy.maxHp = 4; enemy.coins = 3; enemy.name = 'Spearman'; enemy.svg = SVGs.spearman; }
         else if (type === 'shaman') { enemy.hp = 3; enemy.maxHp = 3; enemy.coins = 4; enemy.name = 'Shaman'; enemy.svg = SVGs.shaman; }
-        else if (type === 'boss') { 
-            enemy.hp = 30; enemy.maxHp = 30; enemy.coins = 30; enemy.name = 'Viking Chief'; enemy.svg = SVGs.boss;
-            enemy.bossPhase = 0; enemy.bossPrep = 0; enemy.state = 'READY'; // Boss začíná hned
-        }
+        else if (type === 'boss') { enemy.hp = 30; enemy.maxHp = 30; enemy.coins = 30; enemy.name = 'Viking Chief'; enemy.svg = SVGs.boss; enemy.bossPhase = 0; enemy.bossPrep = 0; enemy.state = 'READY'; }
         this.enemies.push(enemy);
     }
 
-    // --- REWARDS & PROGRESSION ---
+    // --- REWARDS ---
     checkWaveClear() {
         if (this.state === 'GAMEOVER') return;
         if (this.enemies.length === 0) {
             if (this.wave === 10) { this.victory(); return; }
-            if ([2, 6].includes(this.wave)) { this.initRewardDraft(); }
-            else if ([4, 8].includes(this.wave)) { this.initRewardUpgrade(); }
-            else { this.startWave(this.wave + 1); }
+            if ([2, 6].includes(this.wave)) this.initRewardDraft();
+            else if ([4, 8].includes(this.wave)) this.initRewardUpgrade();
+            else this.startWave(this.wave + 1);
         }
+    }
+    
+    getRerollCost() {
+        if (this.hasUpgrade('u3') && this.gameRerolls === 0) return 0;
+        return this.rerollBaseCost;
     }
 
     initRewardDraft() {
-        this.state = 'REWARD_DRAFT'; this.rerollCost = 5; this.draftSelection = [];
+        this.state = 'REWARD_DRAFT'; this.rerollBaseCost = 5; this.draftSelection = [];
         this.generateRewardCards();
         document.getElementById('reward-draft-overlay').classList.remove('hidden');
         this.renderRewardDraftUI();
     }
     generateRewardCards() {
         const ownedIds = this.hand.map(c => c.id);
-        const avail = CARD_DB.filter(c => c.unlocked && !ownedIds.includes(c.id));
+        const avail = CARD_DB.filter(c => this.saveData.unlockedCards.includes(c.id) && !ownedIds.includes(c.id));
         const c1Pool = avail.filter(c => ['Melee', 'Ranged'].includes(c.type));
         const c2Pool = avail.filter(c => ['Movement', 'Special'].includes(c.type));
         
@@ -123,15 +220,13 @@ class Game {
     }
     renderRewardDraftUI() {
         const cont = document.getElementById('reward-draft-cards'); cont.innerHTML = '';
-        this.currentRewardCards.forEach((c, i) => {
-            let el = this.createCardElement(c, 'reward-draft', i);
-            cont.appendChild(el);
-        });
+        this.currentRewardCards.forEach((c, i) => { cont.appendChild(this.createCardElement(c, 'reward-draft', i)); });
         document.getElementById('btn-reward-draft-confirm').disabled = this.draftSelection.length !== 1;
         
         const btnRR = document.getElementById('btn-reward-draft-reroll');
-        btnRR.innerText = `Reroll (${this.rerollCost} 🪙)`;
-        btnRR.disabled = this.player.coins < this.rerollCost;
+        let cost = this.getRerollCost();
+        btnRR.innerText = `Reroll (${cost} 🪙)`;
+        btnRR.disabled = this.player.coins < cost;
     }
     selectRewardDraftCard(index) {
         this.draftSelection = [index];
@@ -144,47 +239,48 @@ class Game {
         this.startWave(this.wave + 1);
     }
     rerollRewardDraft() {
-        if (this.player.coins >= this.rerollCost) {
-            this.player.coins -= this.rerollCost; this.rerollCost *= 2;
+        let cost = this.getRerollCost();
+        if (this.player.coins >= cost) {
+            this.player.coins -= cost; this.gameRerolls++;
+            if (cost > 0) this.rerollBaseCost *= 2;
             this.draftSelection = []; this.generateRewardCards(); this.renderRewardDraftUI(); this.renderTopBar();
         }
     }
 
     initRewardUpgrade() {
-        this.state = 'REWARD_UPGRADE'; this.rerollCost = 5;
+        this.state = 'REWARD_UPGRADE'; this.rerollBaseCost = 5;
         this.generateUpgradeMod();
         document.getElementById('reward-upgrade-overlay').classList.remove('hidden');
         this.renderRewardUpgradeUI();
     }
     generateUpgradeMod() {
-        const mods = [
-            { type: 'dmg', val: 1, text: '+1 Dmg' }, { type: 'dmg', val: 2, text: '+2 Dmg' },
-            { type: 'cd', val: -1, text: '-1 CD' }, { type: 'cd', val: -2, text: '-2 CD' },
-            { type: 'poison', val: 1, text: 'Otravné (+1 CD)' } // poison přidává CD
-        ];
+        const mods = [ { type: 'dmg', val: 1, text: '+1 Dmg' }, { type: 'dmg', val: 2, text: '+2 Dmg' }, { type: 'cd', val: -1, text: '-1 CD' }, { type: 'cd', val: -2, text: '-2 CD' }, { type: 'poison', val: 1, text: 'Otravné (+1 CD)' } ];
         this.currentModifier = mods[Math.floor(Math.random() * mods.length)];
     }
     renderRewardUpgradeUI() {
         document.getElementById('upgrade-mod-box').innerText = `Modifikátor: ${this.currentModifier.text}`;
         const cont = document.getElementById('reward-hand-cards'); cont.innerHTML = '';
-        this.hand.forEach((c, i) => { let el = this.createCardElement(c, 'reward-upgrade', i); cont.appendChild(el); });
+        this.hand.forEach((c, i) => { cont.appendChild(this.createCardElement(c, 'reward-upgrade', i)); });
         
         const btnRR = document.getElementById('btn-reward-upgrade-reroll');
-        btnRR.innerText = `Reroll (${this.rerollCost} 🪙)`;
-        btnRR.disabled = this.player.coins < this.rerollCost;
+        let cost = this.getRerollCost();
+        btnRR.innerText = `Reroll (${cost} 🪙)`;
+        btnRR.disabled = this.player.coins < cost;
     }
     applyUpgradeToCard(uid) {
         let card = this.hand.find(c => c.uid === uid);
         if (card) {
-            if (this.currentModifier.type === 'poison') card.mods.push({type: 'cd', val: 1}); // Postih za otravu
+            if (this.currentModifier.type === 'poison') card.mods.push({type: 'cd', val: 1}); 
             card.mods.push(this.currentModifier);
             document.getElementById('reward-upgrade-overlay').classList.add('hidden');
             this.startWave(this.wave + 1);
         }
     }
     rerollRewardUpgrade() {
-        if (this.player.coins >= this.rerollCost) {
-            this.player.coins -= this.rerollCost; this.rerollCost *= 2;
+        let cost = this.getRerollCost();
+        if (this.player.coins >= cost) {
+            this.player.coins -= cost; this.gameRerolls++;
+            if (cost > 0) this.rerollBaseCost *= 2;
             this.generateUpgradeMod(); this.renderRewardUpgradeUI(); this.renderTopBar();
         }
     }
@@ -196,7 +292,8 @@ class Game {
 
     // --- START DRAFT ---
     startDraft() {
-        let pool = CARD_DB.filter(c => c.unlocked).sort(() => 0.5 - Math.random());
+        this.state = 'DRAFT';
+        let pool = CARD_DB.filter(c => this.saveData.unlockedCards.includes(c.id)).sort(() => 0.5 - Math.random());
         this.deck = pool.slice(0, 4).map(c => this.createCardInstance(c));
         const cont = document.getElementById('draft-cards'); cont.innerHTML = '';
         this.deck.forEach((c, i) => cont.appendChild(this.createCardElement(c, 'draft', i)));
@@ -214,7 +311,7 @@ class Game {
         this.startWave(1);
     }
 
-    // --- VSTUPY ---
+    // --- VSTUPY A AKCE ---
     bindInput() {
         document.addEventListener('keydown', (e) => {
             if (this.state !== 'PLAY') return;
@@ -246,14 +343,24 @@ class Game {
         if (!this.isValid(nx, ny) || this.getEnemyAt(nx, ny)) return;
         this.player.x = nx; this.player.y = ny; this.endTurn();
     }
-    wait() { if (this.state === 'PLAY') this.endTurn(); }
+    wait() { 
+        if (this.state === 'PLAY') {
+            // Aplikace Upgrade u5 (Tactical Master)
+            if (this.hasUpgrade('u5')) { this.hand.forEach(c => { if (c.cd > 0) c.cd--; }); }
+            this.endTurn();
+        } 
+    }
     vikingScream() {
         if (this.state !== 'PLAY' || this.player.screamCd > 0) return;
         this.enemies.forEach(e => {
             const dx = e.x - this.player.x, dy = e.y - this.player.y;
             if (Math.abs(dx) <= 1 && Math.abs(dy) <= 1) {
                 const nx = e.x + Math.sign(dx), ny = e.y + Math.sign(dy);
-                if (this.isValid(nx, ny) && !this.getEnemyAt(nx, ny) && !(nx===this.player.x && ny===this.player.y)) { e.x = nx; e.y = ny; }
+                if (this.isValid(nx, ny) && !this.getEnemyAt(nx, ny) && !(nx===this.player.x && ny===this.player.y)) { 
+                    e.x = nx; e.y = ny; 
+                }
+                // Aplikace Upgrade u7 (Speciality Master)
+                if (this.hasUpgrade('u7')) { this.damageEntityAt(e.x, e.y, 1, false); }
             }
         });
         this.player.screamCd = this.player.maxScreamCd; this.endTurn();
@@ -354,14 +461,21 @@ class Game {
     gameOver() { this.state = 'GAMEOVER'; document.getElementById('gameover-overlay').classList.remove('hidden'); document.getElementById('go-coins').innerText = this.player.coins; }
     victory() { this.state = 'VICTORY'; document.getElementById('victory-overlay').classList.remove('hidden'); document.getElementById('vic-coins').innerText = this.player.coins; }
 
+    returnToMenuFromRun() {
+        this.saveData.coins += this.player.coins; // Přičtení mincí do globálu
+        this.saveGame();
+        
+        // Skrytí všech in-game overlay
+        ['gameover-overlay', 'victory-overlay', 'reward-draft-overlay', 'reward-upgrade-overlay', 'draft-overlay'].forEach(id => {
+            document.getElementById(id).classList.add('hidden');
+        });
+        this.openMenu();
+    }
+
     // --- AI ---
     endTurn() {
         if (this.state === 'GAMEOVER' || this.state === 'VICTORY') return;
-        
-        // Poison proc (Enemies only)
-        this.enemies.forEach(e => {
-            if (e.poison > 0) { this.damageEntityAt(e.x, e.y, 1); e.poison--; }
-        });
+        this.enemies.forEach(e => { if (e.poison > 0) { this.damageEntityAt(e.x, e.y, 1); e.poison--; } });
         
         this.checkTraps();
         if(this.state !== 'GAMEOVER') this.processEnemiesTurn();
@@ -373,40 +487,29 @@ class Game {
     }
 
     processEnemiesTurn() {
-        // 1. Exekuce
         this.enemies.filter(e => e.state === 'AIMING' && !e.stunned).forEach(e => {
             if (e.type === 'boss') {
-                if (e.bossPhase === 1) { // Hook + Club Execution
-                    if (e.bossPrep > 0) { e.bossPrep--; return; } // Still prepping phase 1 (2 turns total)
-                    // Execute hook
+                if (e.bossPhase === 1) { 
+                    if (e.bossPrep > 0) { e.bossPrep--; return; } 
                     let p = this.player;
-                    if (Math.abs(p.x - e.x) <= 3 && Math.abs(p.y - e.y) <= 3) { // Simplified range check
+                    if (Math.abs(p.x - e.x) <= 3 && Math.abs(p.y - e.y) <= 3) {
                         this.damageEntityAt(p.x, p.y, e.dmgAmt);
                         if (this.isValid(e.x + e.aimData.dx, e.y + e.aimData.dy)) {
-                            p.x = e.x + e.aimData.dx; p.y = e.y + e.aimData.dy; // Pull
-                            // Knockback
+                            p.x = e.x + e.aimData.dx; p.y = e.y + e.aimData.dy;
                             if(this.isValid(p.x + e.aimData.dx, p.y + e.aimData.dy) && !this.getEnemyAt(p.x + e.aimData.dx, p.y + e.aimData.dy)) {
                                 p.x += e.aimData.dx; p.y += e.aimData.dy;
                             }
                         }
                     }
                 } else {
-                    // Phase 0 (Axe) & 2 (Evolved Axe)
-                    let cells = this.getEnemyAttackCells(e);
-                    cells.forEach(c => this.damageEntityAt(c.x, c.y, e.dmgAmt));
+                    let cells = this.getEnemyAttackCells(e); cells.forEach(c => this.damageEntityAt(c.x, c.y, e.dmgAmt));
                 }
-                
-                if(e.type==='boss' && (e.bossPhase!==1 || e.bossPrep===0)) {
-                    e.state = 'READY'; e.aimData = null; e.bossPhase = (e.bossPhase + 1) % 3;
-                }
+                if(e.type==='boss' && (e.bossPhase!==1 || e.bossPrep===0)) { e.state = 'READY'; e.aimData = null; e.bossPhase = (e.bossPhase + 1) % 3; }
             } else {
-                let cells = this.getEnemyAttackCells(e);
-                cells.forEach(c => this.damageEntityAt(c.x, c.y, e.dmgAmt));
-                e.state = 'READY'; e.aimData = null;
+                let cells = this.getEnemyAttackCells(e); cells.forEach(c => this.damageEntityAt(c.x, c.y, e.dmgAmt)); e.state = 'READY'; e.aimData = null;
             }
         });
 
-        // 2. Rozhodování
         this.enemies.filter(e => e.hp > 0).forEach(e => {
             if (e.stunned) { e.stunned = false; return; }
             if (e.state === 'EQUIPPING') { e.state = 'READY'; return; }
@@ -417,18 +520,13 @@ class Game {
                 if (e.type === 'boss') {
                     let bdx = Math.abs(dx) > Math.abs(dy) ? Math.sign(dx) : 0; let bdy = bdx===0 ? Math.sign(dy) : 0;
                     if (bdx===0 && bdy===0) { bdx=0; bdy=1; }
-                    e.aimData = {dx: bdx, dy: bdy};
-                    e.state = 'AIMING';
-                    
+                    e.aimData = {dx: bdx, dy: bdy}; e.state = 'AIMING';
                     if (e.bossPhase === 0) { e.dmgAmt = 2; }
-                    else if (e.bossPhase === 1) { 
-                        e.dmgAmt = 2; e.bossPrep = 1; this.spawnEnemy(['pawn','archer','spearman'][Math.floor(Math.random()*3)], false); 
-                    }
+                    else if (e.bossPhase === 1) { e.dmgAmt = 2; e.bossPrep = 1; this.spawnEnemy(['pawn','archer','spearman'][Math.floor(Math.random()*3)], false); }
                     else if (e.bossPhase === 2) { e.dmgAmt = 3; }
                 }
                 else if (e.type === 'pawn') {
-                    if (distO === 1) { e.state = 'AIMING'; e.aimData = {dx, dy}; e.dmgAmt = 2; }
-                    else { this.moveAi(e, p.x, p.y, true); }
+                    if (distO === 1) { e.state = 'AIMING'; e.aimData = {dx, dy}; e.dmgAmt = 2; } else this.moveAi(e, p.x, p.y, true);
                 } 
                 else if (e.type === 'archer') {
                     if (distM <= 2) {
@@ -437,17 +535,14 @@ class Game {
                             e.state = 'AIMING'; e.aimData = {dx:fdx, dy:fdy}; e.dmgAmt = 2;
                         }
                     } else {
-                        if (e.x === p.x || e.y === p.y) { e.state = 'AIMING'; e.aimData = {dx: Math.sign(dx), dy: Math.sign(dy)}; e.dmgAmt = 2; }
-                        else { this.alignAi(e, p.x, p.y); }
+                        if (e.x === p.x || e.y === p.y) { e.state = 'AIMING'; e.aimData = {dx: Math.sign(dx), dy: Math.sign(dy)}; e.dmgAmt = 2; } else this.alignAi(e, p.x, p.y);
                     }
                 }
                 else if (e.type === 'spearman') {
-                    if ((distO === 1 || distO === 2) && (e.x === p.x || e.y === p.y)) { e.state = 'AIMING'; e.aimData = {dx: Math.sign(dx), dy: Math.sign(dy)}; e.dmgAmt = 2; }
-                    else { this.moveAi(e, p.x, p.y, true); }
+                    if ((distO === 1 || distO === 2) && (e.x === p.x || e.y === p.y)) { e.state = 'AIMING'; e.aimData = {dx: Math.sign(dx), dy: Math.sign(dy)}; e.dmgAmt = 2; } else this.moveAi(e, p.x, p.y, true);
                 }
                 else if (e.type === 'shaman') {
-                    if (distM <= 2) { if (!this.moveAi(e, p.x, p.y, false)) { e.state = 'AIMING'; e.aimData = {dx, dy}; e.dmgAmt = 1; } } 
-                    else { e.state = 'AIMING'; e.aimData = {dx, dy}; e.dmgAmt = 1; }
+                    if (distM <= 2) { if (!this.moveAi(e, p.x, p.y, false)) { e.state = 'AIMING'; e.aimData = {dx, dy}; e.dmgAmt = 1; } } else { e.state = 'AIMING'; e.aimData = {dx, dy}; e.dmgAmt = 1; }
                 }
             }
         });
@@ -457,10 +552,7 @@ class Game {
         let moves = [ {dx:0, dy:-1}, {dx:0, dy:1}, {dx:-1, dy:0}, {dx:1, dy:0} ];
         let valid = moves.map(m => ({x: enemy.x+m.dx, y: enemy.y+m.dy})).filter(c => this.isValid(c.x, c.y) && !this.getEnemyAt(c.x, c.y) && !(c.x===this.player.x && c.y===this.player.y));
         if (valid.length === 0) return false;
-        valid.sort((a, b) => {
-            let dA = Math.abs(a.x - tx) + Math.abs(a.y - ty), dB = Math.abs(b.x - tx) + Math.abs(b.y - ty);
-            return towards ? dA - dB : dB - dA;
-        });
+        valid.sort((a, b) => { let dA = Math.abs(a.x - tx) + Math.abs(a.y - ty), dB = Math.abs(b.x - tx) + Math.abs(b.y - ty); return towards ? dA - dB : dB - dA; });
         if (!towards && (Math.abs(valid[0].x - tx) + Math.abs(valid[0].y - ty)) <= (Math.abs(enemy.x - tx) + Math.abs(enemy.y - ty))) return false;
         enemy.x = valid[0].x; enemy.y = valid[0].y; return true;
     }
@@ -485,18 +577,11 @@ class Game {
                 if (this.getEnemyAt(nx, ny) || (nx === this.player.x && ny === this.player.y)) break;
             }
         }
-        else if (e.type === 'shaman') {
-            [{dx:0,dy:0}, {dx:-1,dy:-1}, {dx:1,dy:-1}, {dx:-1,dy:1}, {dx:1,dy:1}].forEach(m => { if(this.isValid(cx+m.dx, cy+m.dy)) cells.push({x: cx+m.dx, y: cy+m.dy}); });
-        }
+        else if (e.type === 'shaman') { [{dx:0,dy:0}, {dx:-1,dy:-1}, {dx:1,dy:-1}, {dx:-1,dy:1}, {dx:1,dy:1}].forEach(m => { if(this.isValid(cx+m.dx, cy+m.dy)) cells.push({x: cx+m.dx, y: cy+m.dy}); }); }
         else if (e.type === 'boss' && e.bossPhase === 1) {
-            // Hook telegraph (rovně, minulé pole od cíle, pokud narazí do hráče)
-            for(let i=1; i<=5; i++) {
-                let nx = e.x + e.aimData.dx*i, ny = e.y + e.aimData.dy*i;
-                if (!this.isValid(nx, ny)) break; cells.push({x:nx, y:ny});
-            }
+            for(let i=1; i<=5; i++) { let nx = e.x + e.aimData.dx*i, ny = e.y + e.aimData.dy*i; if (!this.isValid(nx, ny)) break; cells.push({x:nx, y:ny}); }
         }
         else if (e.type === 'boss' && e.bossPhase === 2) {
-            // Cleave: 2 pole k hráči, diag dolu, 1 vlevo vpravo orto
             let ortho = [{x:cx, y:cy}, {x:cx+e.aimData.dx, y:cy+e.aimData.dy}];
             let perp = e.aimData.dx===0 ? {dx:1, dy:0} : {dx:0, dy:1};
             let left = {x:cx+perp.dx, y:cy+perp.dy}, right = {x:cx-perp.dx, y:cy-perp.dy};

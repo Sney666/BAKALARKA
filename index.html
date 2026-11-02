@@ -7,90 +7,118 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <!-- Startovní Draft -->
-    <div id="draft-overlay" class="hidden modal-overlay">
-        <div class="modal-box">
-            <h2>Vyber si 2 startovní karty</h2>
-            <div id="draft-cards" class="card-container"></div>
-            <button id="btn-confirm-draft" disabled onclick="game.confirmDraft()">Potvrdit výběr</button>
+
+    <!-- HLAVNÍ MENU -->
+    <div id="main-menu" class="screen active">
+        <div class="menu-box">
+            <h1 class="game-title">ROGUE CARDS</h1>
+            <div class="menu-stats">Celkové mince: <span id="menu-coins">0</span> 🪙</div>
+            <button class="menu-btn highlight-btn" onclick="game.startNewGame()">Hrát (Level 1)</button>
+            <button class="menu-btn" onclick="game.openShop()">Obchod</button>
         </div>
     </div>
 
-    <!-- Odměna: Výběr Karty (po vlnách 2 a 6) -->
-    <div id="reward-draft-overlay" class="hidden modal-overlay">
-        <div class="modal-box">
-            <h2 style="color: var(--accent);">Odměna: Nová karta</h2>
-            <p style="margin-bottom: 15px;">Vyber si 1 kartu do své ruky.</p>
-            <div id="reward-draft-cards" class="card-container"></div>
-            <div class="modal-actions">
-                <button id="btn-reward-draft-confirm" disabled onclick="game.claimRewardDraft()">Vzít kartu</button>
-                <button onclick="game.skipReward()">Přeskočit</button>
-                <button id="btn-reward-draft-reroll" class="highlight-btn" onclick="game.rerollRewardDraft()">Reroll (5 🪙)</button>
+    <!-- OBCHOD -->
+    <div id="shop-screen" class="screen hidden">
+        <div class="shop-header">
+            <h2>Kovárna a Cechmistr</h2>
+            <div class="menu-stats">Tvé mince: <span id="shop-coins">0</span> 🪙</div>
+        </div>
+        <div class="shop-container">
+            <div class="shop-section">
+                <h3>Nové zbraně</h3>
+                <div id="shop-cards" class="shop-items-grid"></div>
+            </div>
+            <div class="shop-section">
+                <h3>Trvalá vylepšení</h3>
+                <div id="shop-upgrades" class="shop-items-grid"></div>
             </div>
         </div>
+        <button class="menu-btn" style="margin-top:20px;" onclick="game.openMenu()">Zpět do Menu</button>
     </div>
 
-    <!-- Odměna: Upgrade Karty (po vlnách 4 a 8) -->
-    <div id="reward-upgrade-overlay" class="hidden modal-overlay">
-        <div class="modal-box">
-            <h2 style="color: #daa520;">Odměna: Vylepšení karty</h2>
-            <div id="upgrade-mod-box" class="mod-box">Modifikátor: ...</div>
-            <p style="margin-bottom: 10px; font-size: 0.9rem;">Kliknutím na kartu ve své ruce na ni aplikuješ modifikátor.</p>
-            <div id="reward-hand-cards" class="card-container" style="flex-wrap: wrap; justify-content: center; gap: 5px;"></div>
-            <div class="modal-actions" style="margin-top: 20px;">
-                <button onclick="game.skipReward()">Přeskočit</button>
-                <button id="btn-reward-upgrade-reroll" class="highlight-btn" onclick="game.rerollRewardUpgrade()">Reroll (5 🪙)</button>
+    <!-- HERNÍ ROZHRANÍ (Schované v Menu) -->
+    <div id="game-wrapper" class="screen hidden">
+        <!-- Startovní Draft -->
+        <div id="draft-overlay" class="hidden modal-overlay">
+            <div class="modal-box">
+                <h2>Vyber si 2 startovní karty</h2>
+                <div id="draft-cards" class="card-container"></div>
+                <button id="btn-confirm-draft" disabled onclick="game.confirmDraft()">Potvrdit výběr</button>
             </div>
         </div>
-    </div>
 
-    <!-- Game Over -->
-    <div id="gameover-overlay" class="hidden modal-overlay">
-        <div class="modal-box">
-            <h1 style="color: var(--hp-color); margin-bottom: 10px;">ZEMŘEL JSI!</h1>
-            <p>Tvá cesta zde končí, vikingu.</p>
-            <p style="margin: 15px 0; font-weight: bold;">Získané mince: <span id="go-coins">0</span></p>
-            <button onclick="location.reload()" class="highlight-btn">Zkusit znovu</button>
-        </div>
-    </div>
-
-    <!-- Victory -->
-    <div id="victory-overlay" class="hidden modal-overlay">
-        <div class="modal-box">
-            <h1 style="color: #ffd700; margin-bottom: 10px;">VÍTĚZSTVÍ!</h1>
-            <p>Porazil jsi Náčelníka a ovládl tuto oblast!</p>
-            <p style="margin: 15px 0; font-weight: bold;">Získané mince: <span id="vic-coins">0</span></p>
-            <button onclick="location.reload()" style="background-color: #ffd700; color: #000; border: none;">Odemknout další oblast (Restart)</button>
-        </div>
-    </div>
-
-    <div id="game-container">
-        <!-- Horní informační lišta -->
-        <header id="top-bar">
-            <div class="stat">❤️ HP: <span id="ui-hp">5/5</span></div>
-            <div class="stat">🪙 Mince: <span id="ui-coins">0</span></div>
-            <div class="stat" id="ui-wave-container">🌊 Vlna: <span id="ui-wave">1</span>/10</div>
-        </header>
-
-        <!-- Hlavní herní plocha -->
-        <main>
-            <div id="grid"></div>
-        </main>
-
-        <!-- Ovládací panely a akce -->
-        <div id="action-bar">
-            <button id="btn-wait" onclick="game.wait()">⏳ Čekat</button>
-            <button id="btn-scream" onclick="game.vikingScream()">🗣️ Viking Scream <span id="ui-cooldown"></span></button>
-            <button id="btn-execute" onclick="game.startExecution()" class="highlight-btn" disabled>⚔️ Zahrát karty</button>
+        <!-- Odměna: Výběr Karty -->
+        <div id="reward-draft-overlay" class="hidden modal-overlay">
+            <div class="modal-box">
+                <h2 style="color: var(--accent);">Odměna: Nová karta</h2>
+                <p style="margin-bottom: 15px;">Vyber si 1 kartu do své ruky.</p>
+                <div id="reward-draft-cards" class="card-container"></div>
+                <div class="modal-actions">
+                    <button id="btn-reward-draft-confirm" disabled onclick="game.claimRewardDraft()">Vzít kartu</button>
+                    <button onclick="game.skipReward()">Přeskočit</button>
+                    <button id="btn-reward-draft-reroll" class="highlight-btn" onclick="game.rerollRewardDraft()">Reroll</button>
+                </div>
+            </div>
         </div>
 
-        <!-- Spodní prostor pro karty -->
-        <footer id="bottom-bar">
-            <div class="card-area-title">Připravené karty (Vykonají se zleva doprava)</div>
-            <div id="prepared-slots" class="card-container slots"></div>
-            <div class="card-area-title" style="margin-top: 15px;">Ruka (Kliknutím připravíš za 1 tah)</div>
-            <div id="hand-cards" class="card-container"></div>
-        </footer>
+        <!-- Odměna: Upgrade Karty -->
+        <div id="reward-upgrade-overlay" class="hidden modal-overlay">
+            <div class="modal-box">
+                <h2 style="color: #daa520;">Odměna: Vylepšení karty</h2>
+                <div id="upgrade-mod-box" class="mod-box">Modifikátor: ...</div>
+                <p style="margin-bottom: 10px; font-size: 0.9rem;">Kliknutím na kartu ve své ruce na ni aplikuješ modifikátor.</p>
+                <div id="reward-hand-cards" class="card-container" style="flex-wrap: wrap; justify-content: center; gap: 5px;"></div>
+                <div class="modal-actions" style="margin-top: 20px;">
+                    <button onclick="game.skipReward()">Přeskočit</button>
+                    <button id="btn-reward-upgrade-reroll" class="highlight-btn" onclick="game.rerollRewardUpgrade()">Reroll</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Game Over -->
+        <div id="gameover-overlay" class="hidden modal-overlay">
+            <div class="modal-box">
+                <h1 style="color: var(--hp-color); margin-bottom: 10px;">ZEMŘEL JSI!</h1>
+                <p>Získané mince v tomto běhu: <span id="go-coins">0</span></p>
+                <button onclick="game.returnToMenuFromRun()" class="highlight-btn" style="margin-top:20px;">Zpět do Menu</button>
+            </div>
+        </div>
+
+        <!-- Victory -->
+        <div id="victory-overlay" class="hidden modal-overlay">
+            <div class="modal-box">
+                <h1 style="color: #ffd700; margin-bottom: 10px;">VÍTĚZSTVÍ!</h1>
+                <p>Porazil jsi Náčelníka a ovládl tuto oblast!</p>
+                <p style="margin: 15px 0; font-weight: bold;">Získané mince v tomto běhu: <span id="vic-coins">0</span></p>
+                <button onclick="game.returnToMenuFromRun()" style="background-color: #ffd700; color: #000; border: none; margin-top:20px;">Zpět do Menu</button>
+            </div>
+        </div>
+
+        <div id="game-container">
+            <header id="top-bar">
+                <div class="stat">❤️ HP: <span id="ui-hp">5/5</span></div>
+                <div class="stat">🪙 Mince: <span id="ui-coins">0</span></div>
+                <div class="stat" id="ui-wave-container">🌊 Vlna: <span id="ui-wave">1</span>/10</div>
+            </header>
+
+            <main>
+                <div id="grid"></div>
+            </main>
+
+            <div id="action-bar">
+                <button id="btn-wait" onclick="game.wait()">⏳ Čekat</button>
+                <button id="btn-scream" onclick="game.vikingScream()">🗣️ Viking Scream <span id="ui-cooldown"></span></button>
+                <button id="btn-execute" onclick="game.startExecution()" class="highlight-btn" disabled>⚔️ Zahrát karty</button>
+            </div>
+
+            <footer id="bottom-bar">
+                <div class="card-area-title">Připravené karty (Vykonají se zleva doprava)</div>
+                <div id="prepared-slots" class="card-container slots"></div>
+                <div class="card-area-title" style="margin-top: 15px;">Ruka (Kliknutím připravíš za 1 tah)</div>
+                <div id="hand-cards" class="card-container"></div>
+            </footer>
+        </div>
     </div>
     <script src="game.js"></script>
 </body>

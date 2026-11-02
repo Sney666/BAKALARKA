@@ -4,16 +4,16 @@
     --ui-bg: #2a2a35; --card-melee: #b71c1c; --card-ranged: #2e7d32;
     --card-move: #1565c0; --card-special: #6a1b9a;
 }
-
 * { box-sizing: border-box; margin: 0; padding: 0; }
-
 body { background-color: var(--bg-color); color: var(--text-main); font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
 
-/* Modals (Draft & Game Over) */
-#draft-overlay, #gameover-overlay { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.85); z-index: 1000; display: flex; justify-content: center; align-items: center; }
+/* Modals */
+.modal-overlay { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.85); z-index: 1000; display: flex; justify-content: center; align-items: center; }
 .hidden { display: none !important; }
-#draft-modal, #gameover-modal { background: var(--ui-bg); padding: 30px; border-radius: 12px; border: 2px solid var(--accent); text-align: center; max-width: 800px; width: 90%; }
-#draft-modal h2 { margin-bottom: 20px; }
+.modal-box { background: var(--ui-bg); padding: 30px; border-radius: 12px; border: 2px solid var(--accent); text-align: center; max-width: 800px; width: 90%; }
+.modal-box h2 { margin-bottom: 20px; }
+.modal-actions { display: flex; justify-content: center; gap: 15px; margin-top: 20px; }
+.mod-box { font-size: 1.2rem; font-weight: bold; color: #fff; background: #3b4252; padding: 10px 20px; border-radius: 8px; border: 2px solid #daa520; display: inline-block; margin-bottom: 20px;}
 
 #game-container { display: flex; flex-direction: column; width: 700px; height: 95vh; background-color: #0a0a0c; border: 2px solid var(--cell-border); border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.8); }
 #top-bar { display: flex; justify-content: space-between; padding: 15px 20px; background-color: var(--ui-bg); border-bottom: 2px solid var(--cell-border); font-size: 1.2rem; font-weight: bold; }
@@ -26,20 +26,20 @@ main { flex: 1; display: flex; justify-content: center; align-items: center; pad
 .cell.adjacent:hover { background-color: #3b4252; box-shadow: inset 0 0 10px var(--accent); }
 .cell.target-preview { background-color: #8b0000 !important; box-shadow: inset 0 0 15px #ff0000; }
 .cell.target-preview-move { background-color: #004080 !important; box-shadow: inset 0 0 15px #00aaff; }
-
-/* Telegrafování útoků nepřátel (Pulzování) */
 .cell.telegraph { background-color: #4a1515 !important; animation: pulse-danger 1.5s infinite; }
 @keyframes pulse-danger { 0% { box-shadow: inset 0 0 5px #ff0000; } 50% { box-shadow: inset 0 0 25px #ff0000; } 100% { box-shadow: inset 0 0 5px #ff0000; } }
 
 /* Entity */
 .entity { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: space-between; align-items: center; padding: 2px; pointer-events: none; z-index: 10; }
-.status-icon { font-size: 1rem; line-height: 1; height: 15px; text-shadow: 0 0 3px #000; }
+.status-icon { font-size: 1rem; line-height: 1; height: 15px; text-shadow: 0 0 3px #000; display: flex; justify-content: center; align-items: center; gap:2px;}
+.poison-icon { color: #00ff00; font-size: 0.8rem; }
 .avatar { width: 45px; height: 45px; }
 .name { font-size: 0.65rem; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; background: rgba(0,0,0,0.5); padding: 0 3px; border-radius: 3px;}
 .player .name { color: #87cefa; }
 .enemy .name { color: #ff6b6b; }
-.hp-bar { width: 80%; height: 6px; background-color: #333; border: 1px solid #000; border-radius: 3px; overflow: hidden; }
+.hp-bar { width: 80%; height: 6px; background-color: #333; border: 1px solid #000; border-radius: 3px; overflow: hidden; position:relative; }
 .hp-fill { height: 100%; background-color: var(--hp-color); transition: width 0.2s; }
+.boss-hp { height: 10px; border: 2px solid #daa520; }
 .object-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 5; opacity: 0.8;}
 
 /* Controls */
@@ -56,10 +56,10 @@ button:disabled { opacity: 0.5; cursor: not-allowed; border-color: #555; }
 .card-container { display: flex; justify-content: center; gap: 10px; min-height: 120px; }
 .card-container.slots .card-slot { border: 2px dashed #445; background-color: rgba(0,0,0,0.3); }
 .card, .card-slot { width: 110px; height: 155px; border-radius: 8px; display: flex; flex-direction: column; position: relative; transition: transform 0.2s, box-shadow 0.2s; user-select: none; }
-.card { background-color: #dfdfdf; color: #111; box-shadow: 2px 2px 10px rgba(0,0,0,0.5); cursor: pointer; border: 1px solid #000; }
-.card:hover { transform: translateY(-10px); box-shadow: 2px 12px 15px rgba(0,0,0,0.7); }
+.card { background-color: #dfdfdf; color: #111; box-shadow: 2px 2px 10px rgba(0,0,0,0.5); cursor: pointer; border: 1px solid #000; overflow:hidden; }
+.card:hover { transform: translateY(-10px); box-shadow: 2px 12px 15px rgba(0,0,0,0.7); z-index: 50;}
 .card.cooldown { filter: grayscale(100%); opacity: 0.6; cursor: not-allowed; transform: none; }
-.card.active-aim { transform: translateY(-15px) scale(1.05); box-shadow: 0 0 20px #ffea00; border: 2px solid #ffea00; }
+.card.active-aim { transform: translateY(-15px) scale(1.05); box-shadow: 0 0 20px #ffea00; border: 2px solid #ffea00; z-index:100; }
 .card.selected-draft { border: 3px solid #ffea00; transform: translateY(-10px); }
 .card-header { padding: 4px; color: white; font-size: 0.7rem; font-weight: bold; text-align: center; border-top-left-radius: 7px; border-top-right-radius: 7px; text-shadow: 1px 1px 2px #000; }
 .card.type-Melee .card-header { background-color: var(--card-melee); }
@@ -68,5 +68,6 @@ button:disabled { opacity: 0.5; cursor: not-allowed; border-color: #555; }
 .card.type-Special .card-header { background-color: var(--card-special); }
 .card-name { font-size: 0.75rem; font-weight: bold; text-align: center; padding: 2px; border-bottom: 1px solid #aaa; background: #eee; }
 .card-stats { display: flex; justify-content: space-between; padding: 2px 5px; font-size: 0.7rem; font-weight: bold; background: #ccc; }
-.card-desc { font-size: 0.6rem; padding: 4px; text-align: left; flex: 1; overflow: hidden; line-height: 1.2; }
+.card-desc { font-size: 0.6rem; padding: 4px; text-align: left; flex: 1; overflow: hidden; line-height: 1.2; position: relative;}
 .card-cd-overlay { position: absolute; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.7); color: white; display: flex; justify-content: center; align-items: center; font-size: 3rem; font-weight: bold; border-radius: 8px; z-index: 5; }
+.card-mods { background: #333; color:#00ff00; font-size: 0.55rem; padding: 2px; text-align: center; font-weight: bold;}

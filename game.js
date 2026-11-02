@@ -56,12 +56,31 @@ class Game {
         this.openMenu();
     }
 
-    // --- Ukládání a Načítání ---
+    // --- Ukládání a Načítání se zpětnou kompatibilitou ---
     loadSave() {
         const saved = localStorage.getItem('rogueCardsSave');
-        if (saved) return JSON.parse(saved);
+        if (saved) {
+            try {
+                let parsed = JSON.parse(saved);
+                // Doplnění chybějících polí u starších verzí savu
+                if (!parsed.unlockedCards || !Array.isArray(parsed.unlockedCards)) {
+                    parsed.unlockedCards = [...INITIAL_CARDS];
+                }
+                if (!parsed.unlockedUpgrades || !Array.isArray(parsed.unlockedUpgrades)) {
+                    parsed.unlockedUpgrades = [];
+                }
+                if (typeof parsed.coins !== 'number') {
+                    parsed.coins = 0;
+                }
+                return parsed;
+            } catch (e) {
+                console.error("Chyba při načítání save souboru. Vytvářím nový.", e);
+                return { coins: 0, unlockedCards: [...INITIAL_CARDS], unlockedUpgrades: [] };
+            }
+        }
         return { coins: 0, unlockedCards: [...INITIAL_CARDS], unlockedUpgrades: [] };
     }
+    
     saveGame() { localStorage.setItem('rogueCardsSave', JSON.stringify(this.saveData)); }
     hasUpgrade(uid) { return this.saveData.unlockedUpgrades.includes(uid); }
 

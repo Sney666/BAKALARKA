@@ -56,13 +56,13 @@ class Game {
         this.openMenu();
     }
 
-    // --- Ukládání a Načítání se zpětnou kompatibilitou ---
+    // --- Ukládání a Načítání (Plně zpětně kompatibilní) ---
     loadSave() {
         const saved = localStorage.getItem('rogueCardsSave');
         if (saved) {
             try {
                 let parsed = JSON.parse(saved);
-                // Doplnění chybějících polí u starších verzí savu
+                // Bezpečnostní pojistky pro starší nebo poškozené savy
                 if (!parsed.unlockedCards || !Array.isArray(parsed.unlockedCards)) {
                     parsed.unlockedCards = [...INITIAL_CARDS];
                 }
@@ -74,13 +74,12 @@ class Game {
                 }
                 return parsed;
             } catch (e) {
-                console.error("Chyba při načítání save souboru. Vytvářím nový.", e);
+                console.error("Záchrana starého save souboru selhala, vytvářím nový.", e);
                 return { coins: 0, unlockedCards: [...INITIAL_CARDS], unlockedUpgrades: [] };
             }
         }
         return { coins: 0, unlockedCards: [...INITIAL_CARDS], unlockedUpgrades: [] };
     }
-    
     saveGame() { localStorage.setItem('rogueCardsSave', JSON.stringify(this.saveData)); }
     hasUpgrade(uid) { return this.saveData.unlockedUpgrades.includes(uid); }
 
@@ -175,22 +174,44 @@ class Game {
 
     // --- SETUP VLN ---
     startWave(waveNum) {
-        this.wave = waveNum; this.enemies = []; this.traps = [];
+        this.wave = waveNum; 
+        this.enemies = []; 
+        this.traps = [];
+        
         WAVES[waveNum].forEach(type => this.spawnEnemy(type, type==='archer' || type==='shaman'));
-        this.state = 'PLAY'; this.render();
+        
+        this.state = 'PLAY'; 
+        this.render();
     }
 
     spawnEnemy(type, edgeOnly) {
         let cells = [];
-        for(let y=0; y<this.height; y++) {
-            for(let x=0; x<this.width; x++) {
+        for(let y = 0; y < this.height; y++) {
+            for(let x = 0; x < this.width; x++) {
                 if (this.player.x === x && this.player.y === y) continue;
                 if (this.getEnemyAt(x, y)) continue;
-                if (edgeOnly && x!==0 && x!==this.width-1 && y!==0 && y!==this.height-1) continue;
+                
+                if (edgeOnly) {
+                    const isEdge = (x === 0 || x === this.width - 1 || y === 0 || y === this.height - 1);
+                    if (!isEdge) continue;
+                }
                 cells.push({x, y});
             }
         }
-        if (cells.length === 0) return;
+        
+        // Záchranný fallback: pokud na okraji není místo, povol všechny volné buňky
+        if (cells.length === 0 && edgeOnly) {
+            for(let y = 0; y < this.height; y++) {
+                for(let x = 0; x < this.width; x++) {
+                    if (this.player.x === x && this.player.y === y) continue;
+                    if (this.getEnemyAt(x, y)) continue;
+                    cells.push({x, y});
+                }
+            }
+        }
+        
+        if (cells.length === 0) return; // Mapa je kriticky plná
+        
         const pos = cells[Math.floor(Math.random() * cells.length)];
         
         let enemy = { id: this.enemyIdCounter++, x: pos.x, y: pos.y, type: type, state: 'EQUIPPING', stunned: false, aimData: null, poison: 0 };
@@ -199,17 +220,30 @@ class Game {
         else if (type === 'spearman') { enemy.hp = 4; enemy.maxHp = 4; enemy.coins = 3; enemy.name = 'Spearman'; enemy.svg = SVGs.spearman; }
         else if (type === 'shaman') { enemy.hp = 3; enemy.maxHp = 3; enemy.coins = 4; enemy.name = 'Shaman'; enemy.svg = SVGs.shaman; }
         else if (type === 'boss') { enemy.hp = 30; enemy.maxHp = 30; enemy.coins = 30; enemy.name = 'Viking Chief'; enemy.svg = SVGs.boss; enemy.bossPhase = 0; enemy.bossPrep = 0; enemy.state = 'READY'; }
+        
         this.enemies.push(enemy);
     }
 
-    // --- REWARDS ---
+    // --- REWARDS & LOGIKA VLN ---
     checkWaveClear() {
-        if (this.state === 'GAMEOVER') return;
+        // Zabrání spuštění logiky během Draftu nebo Odměn
+        if (this.state !== 'PLAY') return; 
+        
         if (this.enemies.length === 0) {
-            if (this.wave === 10) { this.victory(); return; }
-            if ([2, 6].includes(this.wave)) this.initRewardDraft();
-            else if ([4, 8].includes(this.wave)) this.initRewardUpgrade();
-            else this.startWave(this.wave + 1);
+            this.state = 'TRANSITION'; // Pojistka proti zacyklení
+            
+            if (this.wave === 10) { 
+                this.victory(); 
+                return; 
+            }
+            
+            if ([2, 6].includes(this.wave)) {
+                this.initRewardDraft();
+            } else if ([4, 8].includes(this.wave)) {
+                this.initRewardUpgrade();
+            } else {
+                this.startWave(this.wave + 1);
+            }
         }
     }
     
@@ -460,13 +494,17 @@ class Game {
 
     damageEntityAt(x, y, amount, applyPoison = false) {
         if (this.player.x === x && this.player.y === y) {
-            this.player.hp -= amount; if (this.player.hp <= 0) this.gameOver();
+            this.player.hp -= amount; 
+            if (this.player.hp <= 0) this.gameOver();
         } else {
             let e = this.getEnemyAt(x, y);
             if (e) {
                 e.hp -= amount;
                 if (applyPoison && e.hp > 0) e.poison = 3;
-                if (e.hp <= 0) { this.player.coins += e.coins; this.enemies = this.enemies.filter(en => en.id !== e.id); }
+                if (e.hp <= 0) { 
+                    this.player.coins += e.coins; 
+                    this.enemies = this.enemies.filter(en => en.id !== e.id); 
+                }
             }
         }
     }
@@ -481,27 +519,28 @@ class Game {
     victory() { this.state = 'VICTORY'; document.getElementById('victory-overlay').classList.remove('hidden'); document.getElementById('vic-coins').innerText = this.player.coins; }
 
     returnToMenuFromRun() {
-        this.saveData.coins += this.player.coins; // Přičtení mincí do globálu
+        this.saveData.coins += this.player.coins;
         this.saveGame();
         
-        // Skrytí všech in-game overlay
         ['gameover-overlay', 'victory-overlay', 'reward-draft-overlay', 'reward-upgrade-overlay', 'draft-overlay'].forEach(id => {
-            document.getElementById(id).classList.add('hidden');
+            const el = document.getElementById(id);
+            if (el) el.classList.add('hidden');
         });
         this.openMenu();
     }
 
-    // --- AI ---
+    // --- AI NEPŘÁTEL ---
     endTurn() {
-        if (this.state === 'GAMEOVER' || this.state === 'VICTORY') return;
+        if (this.state === 'GAMEOVER' || this.state === 'VICTORY' || this.state === 'TRANSITION') return;
         this.enemies.forEach(e => { if (e.poison > 0) { this.damageEntityAt(e.x, e.y, 1); e.poison--; } });
         
         this.checkTraps();
-        if(this.state !== 'GAMEOVER') this.processEnemiesTurn();
-        if(this.state !== 'GAMEOVER') this.checkWaveClear();
+        if (this.state !== 'GAMEOVER' && this.state !== 'VICTORY') this.processEnemiesTurn();
+        if (this.state !== 'GAMEOVER' && this.state !== 'VICTORY') this.checkWaveClear();
         
         if (this.player.screamCd > 0) this.player.screamCd--;
         this.hand.forEach(c => { if (c.cd > 0) c.cd--; });
+        
         if (this.state === 'PLAY') this.render();
     }
 

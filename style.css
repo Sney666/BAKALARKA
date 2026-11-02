@@ -4,12 +4,36 @@
     --ui-bg: #2a2a35; --card-melee: #b71c1c; --card-ranged: #2e7d32;
     --card-move: #1565c0; --card-special: #6a1b9a;
 }
-* { box-sizing: border-box; margin: 0; padding: 0; }
-body { background-color: var(--bg-color); color: var(--text-main); font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
 
-/* Obrazovky */
-.screen { width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center; flex-direction: column; position: absolute; top:0; left:0; background: var(--bg-color);}
-.screen.hidden { display: none !important; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body { 
+    background-color: var(--bg-color); 
+    color: var(--text-main); 
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+    display: flex; 
+    justify-content: center; 
+    align-items: center; 
+    height: 100vh; 
+    overflow: hidden; 
+}
+
+/* Obrazovky a globální skrývání */
+.screen { 
+    width: 100vw; 
+    height: 100vh; 
+    display: flex; 
+    justify-content: center; 
+    align-items: center; 
+    flex-direction: column; 
+    position: absolute; 
+    top: 0; 
+    left: 0; 
+    background: var(--bg-color);
+}
+
+.hidden { display: none !important; }
+
 .screen.active { display: flex; z-index: 10; }
 
 /* Menu a Shop */

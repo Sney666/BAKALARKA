@@ -52,11 +52,12 @@ class Game {
         this.saveData = this.loadSave();
         this.width = 5; this.height = 5;
         this.state = 'MENU';
+        this.waveActive = false;
         this.bindInput();
         this.openMenu();
     }
 
-    // --- Ukládání a Načítání (Plně zpětně kompatibilní) ---
+    // --- Ukládání a Načítání se zpětnou kompatibilitou ---
     loadSave() {
         const saved = localStorage.getItem('rogueCardsSave');
         if (saved) {
@@ -91,6 +92,7 @@ class Game {
     }
     openMenu() {
         this.state = 'MENU';
+        this.waveActive = false;
         document.getElementById('menu-coins').innerText = this.saveData.coins;
         this.switchScreen('main-menu');
     }
@@ -145,6 +147,7 @@ class Game {
     // --- Inicializace Hry ---
     startNewGame() {
         this.wave = 1;
+        this.waveActive = false; // Prevence předčasného ukončení vlny
         this.player = { x: 2, y: 2, hp: 5, maxHp: 5, coins: 0, name: "Viking", screamCd: 0, maxScreamCd: 6 };
         // Aplikace Upgrade u1 (Max HP)
         if (this.hasUpgrade('u1')) this.player.maxHp += 1;
@@ -174,6 +177,7 @@ class Game {
 
     // --- SETUP VLN ---
     startWave(waveNum) {
+        this.waveActive = false; // Zamkneme vlnu během spawnování
         this.wave = waveNum; 
         this.enemies = []; 
         this.traps = [];
@@ -181,6 +185,7 @@ class Game {
         WAVES[waveNum].forEach(type => this.spawnEnemy(type, type==='archer' || type==='shaman'));
         
         this.state = 'PLAY'; 
+        this.waveActive = true; // Odemkneme vlnu (nepřátelé jsou připraveni)
         this.render();
     }
 
@@ -226,11 +231,11 @@ class Game {
 
     // --- REWARDS & LOGIKA VLN ---
     checkWaveClear() {
-        // Zabrání spuštění logiky během Draftu nebo Odměn
-        if (this.state !== 'PLAY') return; 
+        // Zabrání spuštění logiky během Draftu nebo Odměn a zajistí, že vlna reálně probíhá
+        if (this.state !== 'PLAY' || !this.waveActive) return; 
         
         if (this.enemies.length === 0) {
-            this.state = 'TRANSITION'; // Pojistka proti zacyklení
+            this.waveActive = false; // Vlna právě skončila, zamezíme opakovanému spuštění
             
             if (this.wave === 10) { 
                 this.victory(); 
@@ -361,7 +366,7 @@ class Game {
     confirmDraft() {
         this.draftSelection.forEach(idx => this.hand.push({...this.deck[idx]}));
         document.getElementById('draft-overlay').classList.add('hidden');
-        this.startWave(1);
+        this.startWave(1); // Zaručí bezpečné spuštění Vlny 1
     }
 
     // --- VSTUPY A AKCE ---
@@ -428,7 +433,12 @@ class Game {
     // --- MÍŘENÍ ---
     startExecution() { if (this.state === 'PLAY' && this.prepared.length > 0) { this.state = 'AIMING'; this.aimingIndex = 0; this.setupNextAim(); } }
     setupNextAim() {
-        if (this.aimingIndex >= this.prepared.length) { this.state = 'PLAY'; this.prepared = []; this.endTurn(); return; }
+        if (this.aimingIndex >= this.prepared.length) { 
+            this.state = 'PLAY'; 
+            this.prepared = []; 
+            this.endTurn(); 
+            return; 
+        }
         const card = this.prepared[this.aimingIndex];
         this.aimTargetCells = card.aim === 'self' ? [{x: this.player.x, y: this.player.y}] : [];
         this.render();
@@ -515,8 +525,18 @@ class Game {
         }
     }
 
-    gameOver() { this.state = 'GAMEOVER'; document.getElementById('gameover-overlay').classList.remove('hidden'); document.getElementById('go-coins').innerText = this.player.coins; }
-    victory() { this.state = 'VICTORY'; document.getElementById('victory-overlay').classList.remove('hidden'); document.getElementById('vic-coins').innerText = this.player.coins; }
+    gameOver() { 
+        this.state = 'GAMEOVER'; 
+        this.waveActive = false;
+        document.getElementById('gameover-overlay').classList.remove('hidden'); 
+        document.getElementById('go-coins').innerText = this.player.coins; 
+    }
+    victory() { 
+        this.state = 'VICTORY'; 
+        this.waveActive = false;
+        document.getElementById('victory-overlay').classList.remove('hidden'); 
+        document.getElementById('vic-coins').innerText = this.player.coins; 
+    }
 
     returnToMenuFromRun() {
         this.saveData.coins += this.player.coins;
@@ -531,7 +551,8 @@ class Game {
 
     // --- AI NEPŘÁTEL ---
     endTurn() {
-        if (this.state === 'GAMEOVER' || this.state === 'VICTORY' || this.state === 'TRANSITION') return;
+        if (this.state === 'GAMEOVER' || this.state === 'VICTORY') return;
+        
         this.enemies.forEach(e => { if (e.poison > 0) { this.damageEntityAt(e.x, e.y, 1); e.poison--; } });
         
         this.checkTraps();

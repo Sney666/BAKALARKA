@@ -16,6 +16,16 @@
         </div>
     </div>
 
+    <!-- Game Over obrazovka -->
+    <div id="gameover-overlay" class="hidden">
+        <div id="gameover-modal">
+            <h1 style="color: var(--hp-color); margin-bottom: 10px;">ZEMŘEL JSI!</h1>
+            <p>Tvá cesta zde končí, vikingu.</p>
+            <p style="margin: 15px 0; font-weight: bold;">Získané mince: <span id="go-coins">0</span></p>
+            <button onclick="location.reload()" class="highlight-btn">Zkusit znovu</button>
+        </div>
+    </div>
+
     <div id="game-container">
         <!-- Horní informační lišta -->
         <header id="top-bar">
@@ -43,14 +53,10 @@
         <!-- Spodní prostor pro karty -->
         <footer id="bottom-bar">
             <div class="card-area-title">Připravené karty (Vykonají se zleva doprava)</div>
-            <div id="prepared-slots" class="card-container slots">
-                <!-- Vygeneruje JS -->
-            </div>
+            <div id="prepared-slots" class="card-container slots"></div>
             
             <div class="card-area-title" style="margin-top: 15px;">Ruka (Kliknutím připravíš za 1 tah)</div>
-            <div id="hand-cards" class="card-container">
-                <!-- Vygeneruje JS -->
-            </div>
+            <div id="hand-cards" class="card-container"></div>
         </footer>
     </div>
     <script src="game.js"></script>

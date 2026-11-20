@@ -1,0 +1,92 @@
+{
+  "scannerProperties": [
+    {
+      "key": "sonar.scanner.app",
+      "value": "ScannerMSBuild"
+    },
+    {
+      "key": "sonar.scanner.appVersion",
+      "value": "12.1"
+    },
+    {
+      "key": "sonar.scanner.bootstrapStartTime",
+      "value": "1795189952000"
+    },
+    {
+      "key": "sonar.projectKey",
+      "value": "zeroshot-v2"
+    },
+    {
+      "key": "sonar.working.directory",
+      "value": "C:\\school\\3\\bakalarska_prace\\zeroshot\\.sonarqube\\out\\.sonar"
+    },
+    {
+      "key": "sonar.projectBaseDir",
+      "value": "C:\\school\\3\\bakalarska_prace\\zeroshot"
+    },
+    {
+      "key": "sonar.pullrequest.cache.basepath",
+      "value": "C:\\school\\3\\bakalarska_prace\\zeroshot"
+    },
+    {
+      "key": "sonar.sources",
+      "value": "C:\\school\\3\\bakalarska_prace\\zeroshot\\.vs\\zeroshot.slnx\\v18\\DocumentLayout.backup.json,C:\\school\\3\\bakalarska_prace\\zeroshot\\.vs\\zeroshot.slnx\\v18\\DocumentLayout.json"
+    },
+    {
+      "key": "sonar.tests",
+      "value": ""
+    },
+    {
+      "key": "sonar.modules",
+      "value": "2D27901D-CC9A-C2E3-28B3-AEAD00D4CEC0"
+    },
+    {
+      "key": "2D27901D-CC9A-C2E3-28B3-AEAD00D4CEC0.sonar.projectKey",
+      "value": "zeroshot-v2:2D27901D-CC9A-C2E3-28B3-AEAD00D4CEC0"
+    },
+    {
+      "key": "2D27901D-CC9A-C2E3-28B3-AEAD00D4CEC0.sonar.projectName",
+      "value": "zeroshot"
+    },
+    {
+      "key": "2D27901D-CC9A-C2E3-28B3-AEAD00D4CEC0.sonar.projectBaseDir",
+      "value": "C:\\school\\3\\bakalarska_prace\\zeroshot\\zeroshot"
+    },
+    {
+      "key": "2D27901D-CC9A-C2E3-28B3-AEAD00D4CEC0.sonar.working.directory",
+      "value": "C:\\school\\3\\bakalarska_prace\\zeroshot\\.sonarqube\\out\\.sonar\\mod0"
+    },
+    {
+      "key": "2D27901D-CC9A-C2E3-28B3-AEAD00D4CEC0.sonar.sourceEncoding",
+      "value": "utf-8"
+    },
+    {
+      "key": "2D27901D-CC9A-C2E3-28B3-AEAD00D4CEC0.sonar.tests",
+      "value": ""
+    },
+    {
+      "key": "2D27901D-CC9A-C2E3-28B3-AEAD00D4CEC0.sonar.sources",
+      "value": "C:\\school\\3\\bakalarska_prace\\zeroshot\\zeroshot\\Program.cs,C:\\school\\3\\bakalarska_prace\\zeroshot\\zeroshot\\obj\\project.assets.json,C:\\school\\3\\bakalarska_prace\\zeroshot\\zeroshot\\obj\\project.packagespec.json,C:\\school\\3\\bakalarska_prace\\zeroshot\\zeroshot\\obj\\zeroshot.csproj.nuget.dgspec.json,C:\\school\\3\\bakalarska_prace\\zeroshot\\zeroshot\\bin\\Debug\\net10.0-windows\\zeroshot.deps.json,C:\\school\\3\\bakalarska_prace\\zeroshot\\zeroshot\\bin\\Debug\\net10.0-windows\\zeroshot.runtimeconfig.json,C:\\school\\3\\bakalarska_prace\\zeroshot\\zeroshot\\obj\\Debug\\net10.0-windows\\zeroshot.designer.deps.json,C:\\school\\3\\bakalarska_prace\\zeroshot\\zeroshot\\obj\\Debug\\net10.0-windows\\zeroshot.designer.runtimeconfig.json,C:\\school\\3\\bakalarska_prace\\zeroshot\\zeroshot\\obj\\Debug\\net10.0-windows\\zeroshot.sourcelink.json"
+    },
+    {
+      "key": "2D27901D-CC9A-C2E3-28B3-AEAD00D4CEC0.sonar.cs.analyzer.projectOutPaths",
+      "value": "C:\\school\\3\\bakalarska_prace\\zeroshot\\.sonarqube\\out\\0"
+    },
+    {
+      "key": "2D27901D-CC9A-C2E3-28B3-AEAD00D4CEC0.sonar.cs.roslyn.reportFilePaths",
+      "value": "C:\\school\\3\\bakalarska_prace\\zeroshot\\.sonarqube\\out\\0\\Issues.json"
+    },
+    {
+      "key": "2D27901D-CC9A-C2E3-28B3-AEAD00D4CEC0.sonar.cs.scanner.telemetry",
+      "value": "C:\\school\\3\\bakalarska_prace\\zeroshot\\.sonarqube\\out\\0\\Telemetry.json"
+    },
+    {
+      "key": "sonar.token",
+      "value": "***"
+    },
+    {
+      "key": "sonar.host.url",
+      "value": "http://localhost:9000"
+    }
+  ]
+}

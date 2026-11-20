@@ -1,0 +1,6 @@
+projectKey=zeroshot-v2
+serverUrl=http://localhost:9000
+serverVersion=26.10.0.133078
+dashboardUrl=http://localhost:9000/dashboard?id=zeroshot-v2
+ceTaskId=48d67939-1a1e-42c1-ba29-9abf95a9f7b4
+ceTaskUrl=http://localhost:9000/api/ce/task?id=48d67939-1a1e-42c1-ba29-9abf95a9f7b4

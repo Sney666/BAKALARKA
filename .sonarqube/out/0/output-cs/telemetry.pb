@@ -1,0 +1,1 @@
+KR>C:\school\3\bakalarska_prace\zeroshot\zeroshot\zeroshot.csprojòCSharp14

@@ -12,6 +12,7 @@ namespace RogueCards
 
         private readonly GameDatabase database;
         private readonly PlayerProfile profile;
+        private readonly PersistenceManager persistenceManager;
         private readonly Random random;
         private readonly CardResolver cardResolver;
         private readonly EnemyAI enemyAI;
@@ -54,10 +55,11 @@ namespace RogueCards
             }
         }
 
-        public GameEngine(GameDatabase database, PlayerProfile profile)
+        public GameEngine(GameDatabase database, PlayerProfile profile, PersistenceManager persistenceManager)
         {
             this.database = database;
             this.profile = profile;
+            this.persistenceManager = persistenceManager;
             random = new Random();
             cardResolver = new CardResolver();
             enemyAI = new EnemyAI(random);
@@ -101,7 +103,8 @@ namespace RogueCards
                 IsGameOver = false,
                 GameOverReason = string.Empty,
                 NextEnemyInstanceId = 1,
-                NextCardInstanceId = 1
+                NextCardInstanceId = 1,
+                CombatLogFilePath = persistenceManager.CreateNewCombatLogPath()
             };
 
             isExecutingQueue = false;
@@ -120,6 +123,35 @@ namespace RogueCards
             {
                 AddCombatLog($"Permanent upgrades active: {string.Join(", ", activeUpgrades)}.");
             }
+
+            SaveCurrentRun();
+        }
+
+        public void LoadSavedRun(ActiveRunState loadedRun)
+        {
+            CurrentRun = loadedRun;
+            isExecutingQueue = false;
+            currentExecutingQueueIndex = 0;
+            cardsPlayedThisTurn.Clear();
+            LastSpecialEffectType = string.Empty;
+
+            if (string.IsNullOrWhiteSpace(CurrentRun.CombatLogFilePath))
+            {
+                CurrentRun.CombatLogFilePath = persistenceManager.CreateNewCombatLogPath();
+            }
+
+            LastActionFeedback = $"Resumed saved run (Wave {CurrentRun.CurrentWave}, Turn {CurrentRun.TurnNumber}).";
+            AddCombatLog($"--- Resumed saved run (Wave {CurrentRun.CurrentWave}, Turn {CurrentRun.TurnNumber}) ---");
+        }
+
+        public bool SaveCurrentRun()
+        {
+            if (CurrentRun == null || CurrentRun.IsGameOver)
+            {
+                return false;
+            }
+
+            return persistenceManager.SaveActiveRun(CurrentRun);
         }
 
         private void BuildStartingDraftOptions()
@@ -203,6 +235,7 @@ namespace RogueCards
             AddCombatLog($"Drafted starting hand: {string.Join(", ", chosenNames)}.");
 
             enemyAI.SpawnWave(this, CurrentRun.CurrentWave);
+            SaveCurrentRun();
             return true;
         }
 
@@ -262,6 +295,7 @@ namespace RogueCards
 
             LastActionFeedback = $"Reordered {moved.Definition.Name} to Slot #{toIndex + 1} (0 turns).";
             AddCombatLog($"Reordered queue: {moved.Definition.Name} moved to Slot #{toIndex + 1} (free action).");
+            SaveCurrentRun();
             return true;
         }
 
@@ -436,6 +470,7 @@ namespace RogueCards
                 PopulatePickCardChoices(CurrentRun.PendingReward);
                 LastActionFeedback = $"Wave {clearedWaveNumber} cleared! Pick a Card (all cooldowns reset).";
                 AddCombatLog($"Wave {clearedWaveNumber} cleared! Reward: Pick a Card.");
+                SaveCurrentRun();
                 return GameScreen.RewardCard;
             }
 
@@ -452,6 +487,7 @@ namespace RogueCards
                 PopulateUpgradeChoices(CurrentRun.PendingReward);
                 LastActionFeedback = $"Wave {clearedWaveNumber} cleared! Upgrade a Card (all cooldowns reset).";
                 AddCombatLog($"Wave {clearedWaveNumber} cleared! Reward: Upgrade a Card.");
+                SaveCurrentRun();
                 return GameScreen.RewardUpgrade;
             }
 
@@ -491,43 +527,19 @@ namespace RogueCards
         {
             reward.UpgradeOptions.Clear();
 
-            List<UpgradeOption> allOptions = new List<UpgradeOption>
+            UpgradeModifierType[] allTypes = new UpgradeModifierType[]
             {
-                new UpgradeOption
-                {
-                    ModifierType = UpgradeModifierType.PlusOneDamage,
-                    Name = "+1 Damage",
-                    Description = "Permanently adds +1 damage to the chosen card for this run."
-                },
-                new UpgradeOption
-                {
-                    ModifierType = UpgradeModifierType.PlusTwoDamage,
-                    Name = "+2 Damage",
-                    Description = "Permanently adds +2 damage to the chosen card for this run."
-                },
-                new UpgradeOption
-                {
-                    ModifierType = UpgradeModifierType.MinusOneCooldown,
-                    Name = "-1 Cooldown",
-                    Description = "Reduces the maximum cooldown of the chosen card by 1 turn (min 1)."
-                },
-                new UpgradeOption
-                {
-                    ModifierType = UpgradeModifierType.MinusTwoCooldown,
-                    Name = "-2 Cooldown",
-                    Description = "Reduces the maximum cooldown of the chosen card by 2 turns (min 1)."
-                },
-                new UpgradeOption
-                {
-                    ModifierType = UpgradeModifierType.PoisonEffect,
-                    Name = "Poison",
-                    Description = "Adds +1 to max cooldown cost. Hit enemies take 1 poison dmg/turn for 3 turns."
-                }
+                UpgradeModifierType.PlusOneDamage,
+                UpgradeModifierType.PlusTwoDamage,
+                UpgradeModifierType.MinusOneCooldown,
+                UpgradeModifierType.MinusTwoCooldown,
+                UpgradeModifierType.PoisonEffect
             };
 
-            List<UpgradeOption> picked = allOptions
+            List<UpgradeOption> picked = allTypes
                 .OrderBy(_ => random.Next())
                 .Take(3)
+                .Select(PersistenceManager.BuildUpgradeOption)
                 .ToList();
 
             reward.UpgradeOptions.AddRange(picked);
@@ -648,6 +660,7 @@ namespace RogueCards
                 reward.RerollCount++;
                 reward.NextRerollCost = cost * 2;
                 CurrentRun.UsedRerollInRun = true;
+                persistenceManager.SaveProfile(profile);
                 LastActionFeedback = $"Rerolled reward for {cost} Coins (next reroll: {reward.NextRerollCost} Coins).";
                 AddCombatLog($"Rerolled reward for {cost} Coins.");
             }
@@ -661,6 +674,7 @@ namespace RogueCards
                 PopulateUpgradeChoices(reward);
             }
 
+            SaveCurrentRun();
             return true;
         }
 
@@ -669,6 +683,7 @@ namespace RogueCards
             CurrentRun.CurrentWave++;
             CurrentRun.TookDamageInCurrentWave = false;
             enemyAI.SpawnWave(this, CurrentRun.CurrentWave);
+            SaveCurrentRun();
         }
 
         private void CheckWaveClearOrVictory()
@@ -690,6 +705,8 @@ namespace RogueCards
                 CurrentRun.IsGameOver = true;
                 CurrentRun.GameOverReason = "Victory! You defeated the Viking Chief and conquered Level 1!";
                 profile.Area2Unlocked = true;
+                persistenceManager.SaveProfile(profile);
+                persistenceManager.ClearActiveRunSave();
                 LastActionFeedback = "VICTORY! Viking Chief defeated!";
                 AddCombatLog("VICTORY! Level 1 completed and Area 2 unlocked!");
                 return;
@@ -740,6 +757,7 @@ namespace RogueCards
             if (enemy.CurrentHp <= 0)
             {
                 profile.Coins += enemy.CoinDrop;
+                persistenceManager.SaveProfile(profile);
                 AddCombatLog($"{enemy.Name} defeated! (+{enemy.CoinDrop} Coins)");
                 RemoveDefeatedEnemies();
             }
@@ -758,6 +776,7 @@ namespace RogueCards
             if (victim.CurrentHp <= 0)
             {
                 profile.Coins += victim.CoinDrop;
+                persistenceManager.SaveProfile(profile);
                 AddCombatLog($"{victim.Name} killed by friendly fire! (+{victim.CoinDrop} Coins)");
                 RemoveDefeatedEnemies();
             }
@@ -788,6 +807,8 @@ namespace RogueCards
             CurrentRun.IsGameOver = true;
             CurrentRun.GameOverReason = reason;
             isExecutingQueue = false;
+            persistenceManager.SaveProfile(profile);
+            persistenceManager.ClearActiveRunSave();
             LastActionFeedback = "DEFEAT! You have fallen in battle.";
             AddCombatLog($"DEFEAT: {reason}");
         }
@@ -1240,6 +1261,10 @@ namespace RogueCards
             {
                 CurrentRun.TurnNumber++;
                 CheckWaveClearOrVictory();
+                if (!CurrentRun.IsGameOver)
+                {
+                    SaveCurrentRun();
+                }
             }
         }
 
@@ -1324,7 +1349,7 @@ namespace RogueCards
 
         public void AddCombatLog(string entry)
         {
-            if (CurrentRun == null)
+            if (CurrentRun == null || string.IsNullOrWhiteSpace(entry))
             {
                 return;
             }
@@ -1334,6 +1359,8 @@ namespace RogueCards
             {
                 CurrentRun.RecentLogEntries.RemoveAt(0);
             }
+
+            persistenceManager.AppendCombatLogLine(CurrentRun.CombatLogFilePath, entry);
         }
 
         private static string GetDirectionName(int dx, int dy)

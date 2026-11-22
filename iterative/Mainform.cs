@@ -14,6 +14,7 @@ namespace RogueCards
         private const int WindowHeight = 720;
 
         private readonly DataRepository dataRepository;
+        private readonly PersistenceManager persistenceManager;
         private readonly GameDatabase database;
         private readonly PlayerProfile profile;
         private readonly MenuRenderer menuRenderer;
@@ -66,9 +67,10 @@ namespace RogueCards
 
             dataRepository = new DataRepository();
             database = dataRepository.InitializeAndLoad();
-            profile = dataRepository.CreateDefaultProfile(database);
+            persistenceManager = new PersistenceManager(dataRepository);
+            profile = persistenceManager.LoadProfile(database, out string profileWarning);
             menuRenderer = new MenuRenderer();
-            gameEngine = new GameEngine(database, profile);
+            gameEngine = new GameEngine(database, profile, persistenceManager);
             arenaRenderer = new ArenaRenderer();
 
             animationTimer = new Timer();
@@ -86,7 +88,11 @@ namespace RogueCards
             selectedUpgradeModifierIndex = -1;
             selectedUpgradeCardInstanceId = -1;
 
-            if (dataRepository.ParseErrors.Count > 0)
+            if (!string.IsNullOrEmpty(profileWarning))
+            {
+                menuStatusMessage = profileWarning;
+            }
+            else if (dataRepository.ParseErrors.Count > 0)
             {
                 menuStatusMessage = $"Warning: {dataRepository.ParseErrors.Count} malformed data line(s) logged to Logs/data_parser_errors.txt.";
             }
@@ -184,6 +190,24 @@ namespace RogueCards
 
                 Invalidate();
             }
+        }
+
+        private void SaveAndReturnToMenu()
+        {
+            if (gameEngine.CurrentRun != null && !gameEngine.CurrentRun.IsGameOver)
+            {
+                bool saved = gameEngine.SaveCurrentRun();
+                persistenceManager.SaveProfile(profile);
+                menuStatusMessage = saved
+                    ? "Run saved to Saves/active_run.txt. Click Continue Saved Run to resume."
+                    : "Returned to Main Menu.";
+            }
+            else
+            {
+                menuStatusMessage = "Returned to Main Menu.";
+            }
+
+            SetScreen(GameScreen.Menu);
         }
 
         private void SyncPostActionScreenState()
@@ -390,16 +414,20 @@ namespace RogueCards
                     break;
 
                 case MenuActionType.ContinueRun:
-                    if (hit.IsEnabled && dataRepository.HasActiveRunSave())
+                    if (persistenceManager.HasActiveRunSave())
                     {
-                        if (gameEngine.CurrentRun == null)
+                        if (persistenceManager.LoadActiveRun(database, out ActiveRunState loadedRun, out string loadError))
                         {
-                            gameEngine.StartNewRun();
-                            SetScreen(GameScreen.StartingDraft);
+                            gameEngine.LoadSavedRun(loadedRun);
+                            specialAnimProgress = 0f;
+                            lastSeenSpecialSeqId = gameEngine.LastSpecialSequenceId;
+                            menuStatusMessage = string.Empty;
+                            SyncPostActionScreenState();
+                            Invalidate();
                         }
                         else
                         {
-                            SyncPostActionScreenState();
+                            menuStatusMessage = $"Unable to load saved run: {loadError}";
                             Invalidate();
                         }
                     }
@@ -520,8 +548,7 @@ namespace RogueCards
                     break;
 
                 case ArenaActionType.SaveAndExit:
-                    menuStatusMessage = "Returned to Main Menu.";
-                    SetScreen(GameScreen.Menu);
+                    SaveAndReturnToMenu();
                     break;
             }
         }
@@ -537,6 +564,9 @@ namespace RogueCards
             switch (hit.ActionType)
             {
                 case ArenaActionType.SaveAndExit:
+                    SaveAndReturnToMenu();
+                    break;
+
                 case ArenaActionType.GameOverMenu:
                     menuStatusMessage = "Returned to Main Menu.";
                     SetScreen(GameScreen.Menu);
@@ -630,6 +660,7 @@ namespace RogueCards
             }
 
             profile.SelectedCharacterId = character.Id;
+            persistenceManager.SaveProfile(profile);
             menuStatusMessage = $"Selected Hero: {character.Name}.";
             Invalidate();
         }
@@ -655,6 +686,7 @@ namespace RogueCards
 
             profile.Coins -= weapon.UnlockCost;
             profile.UnlockedWeaponIds.Add(weapon.Id);
+            persistenceManager.SaveProfile(profile);
             menuStatusMessage = $"Unlocked weapon '{weapon.Name}' for {weapon.UnlockCost} Coins!";
             Invalidate();
         }
@@ -680,6 +712,7 @@ namespace RogueCards
 
             profile.Coins -= upgrade.Cost;
             profile.UnlockedUpgradeIds.Add(upgrade.Id);
+            persistenceManager.SaveProfile(profile);
             menuStatusMessage = $"Purchased permanent upgrade '{upgrade.Name}' for {upgrade.Cost} Coins!";
             Invalidate();
         }
@@ -694,7 +727,18 @@ namespace RogueCards
 
             if (e.KeyCode == Keys.Escape && currentScreen != GameScreen.Menu)
             {
-                SetScreen(GameScreen.Menu);
+                if (currentScreen == GameScreen.Arena ||
+                    currentScreen == GameScreen.StartingDraft ||
+                    currentScreen == GameScreen.RewardCard ||
+                    currentScreen == GameScreen.RewardUpgrade)
+                {
+                    SaveAndReturnToMenu();
+                }
+                else
+                {
+                    SetScreen(GameScreen.Menu);
+                }
+
                 return;
             }
 
@@ -855,7 +899,7 @@ namespace RogueCards
                     g,
                     database,
                     profile,
-                    dataRepository.HasActiveRunSave(),
+                    persistenceManager.HasActiveRunSave(),
                     mouseLocation,
                     menuStatusMessage);
                 return;

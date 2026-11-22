@@ -13,6 +13,7 @@ namespace RogueCards
         private readonly GameDatabase database;
         private readonly PlayerProfile profile;
         private readonly PersistenceManager persistenceManager;
+        private readonly AchievementManager achievementManager;
         private readonly Random random;
         private readonly CardResolver cardResolver;
         private readonly EnemyAI enemyAI;
@@ -55,11 +56,16 @@ namespace RogueCards
             }
         }
 
-        public GameEngine(GameDatabase database, PlayerProfile profile, PersistenceManager persistenceManager)
+        public GameEngine(
+            GameDatabase database,
+            PlayerProfile profile,
+            PersistenceManager persistenceManager,
+            AchievementManager achievementManager)
         {
             this.database = database;
             this.profile = profile;
             this.persistenceManager = persistenceManager;
+            this.achievementManager = achievementManager;
             random = new Random();
             cardResolver = new CardResolver();
             enemyAI = new EnemyAI(random);
@@ -112,6 +118,7 @@ namespace RogueCards
             cardsPlayedThisTurn.Clear();
 
             BuildStartingDraftOptions();
+            achievementManager.RecordRunStarted();
 
             LastActionFeedback = $"Choose 2 starting cards for {character.Name}.";
             LastSpecialEffectType = string.Empty;
@@ -235,6 +242,7 @@ namespace RogueCards
             AddCombatLog($"Drafted starting hand: {string.Join(", ", chosenNames)}.");
 
             enemyAI.SpawnWave(this, CurrentRun.CurrentWave);
+            achievementManager.RecordWaveReached(CurrentRun.CurrentWave);
             SaveCurrentRun();
             return true;
         }
@@ -374,6 +382,7 @@ namespace RogueCards
 
             card.CurrentCooldown = GetEffectiveCardMaxCooldown(card);
             cardsPlayedThisTurn.Add(card.InstanceId);
+            achievementManager.RecordCardPlayed(card.Definition.Name);
             LastActionFeedback = $"Executed {card.Definition.Name}!";
             currentExecutingQueueIndex++;
 
@@ -397,6 +406,7 @@ namespace RogueCards
                     cardResolver.ResolveCard(this, nextCard, new GridPos(0, 0));
                     nextCard.CurrentCooldown = GetEffectiveCardMaxCooldown(nextCard);
                     cardsPlayedThisTurn.Add(nextCard.InstanceId);
+                    achievementManager.RecordCardPlayed(nextCard.Definition.Name);
                     currentExecutingQueueIndex++;
                 }
                 else
@@ -416,6 +426,11 @@ namespace RogueCards
         {
             PlayerState player = CurrentRun.Player;
             int playedCount = currentExecutingQueueIndex;
+
+            if (playedCount > 0)
+            {
+                achievementManager.RecordCardsPlayedInSingleTurn(playedCount);
+            }
 
             foreach (CardInstance queuedCard in player.EquippedQueue)
             {
@@ -683,6 +698,7 @@ namespace RogueCards
             CurrentRun.CurrentWave++;
             CurrentRun.TookDamageInCurrentWave = false;
             enemyAI.SpawnWave(this, CurrentRun.CurrentWave);
+            achievementManager.RecordWaveReached(CurrentRun.CurrentWave);
             SaveCurrentRun();
         }
 
@@ -698,6 +714,8 @@ namespace RogueCards
                 return;
             }
 
+            achievementManager.RecordWaveCleared(CurrentRun.CurrentWave, CurrentRun.TookDamageInCurrentWave);
+
             int maxWave = database.Waves.Count > 0 ? database.Waves.Max(w => w.WaveNumber) : 10;
             if (CurrentRun.CurrentWave >= maxWave)
             {
@@ -705,6 +723,7 @@ namespace RogueCards
                 CurrentRun.IsGameOver = true;
                 CurrentRun.GameOverReason = "Victory! You defeated the Viking Chief and conquered Level 1!";
                 profile.Area2Unlocked = true;
+                achievementManager.RecordRunWon(CurrentRun.UsedRerollInRun);
                 persistenceManager.SaveProfile(profile);
                 persistenceManager.ClearActiveRunSave();
                 LastActionFeedback = "VICTORY! Viking Chief defeated!";
@@ -740,9 +759,11 @@ namespace RogueCards
                 return;
             }
 
-            if (damage > 0)
+            int actualDamage = Math.Min(enemy.CurrentHp, Math.Max(0, damage));
+            if (actualDamage > 0)
             {
-                enemy.CurrentHp = Math.Max(0, enemy.CurrentHp - damage);
+                enemy.CurrentHp = Math.Max(0, enemy.CurrentHp - actualDamage);
+                achievementManager.RecordDamageDealt(actualDamage);
             }
 
             string poisonText = string.Empty;
@@ -757,6 +778,7 @@ namespace RogueCards
             if (enemy.CurrentHp <= 0)
             {
                 profile.Coins += enemy.CoinDrop;
+                achievementManager.RecordEnemyDefeated(enemy.Type, enemy.CoinDrop, false);
                 persistenceManager.SaveProfile(profile);
                 AddCombatLog($"{enemy.Name} defeated! (+{enemy.CoinDrop} Coins)");
                 RemoveDefeatedEnemies();
@@ -770,12 +792,19 @@ namespace RogueCards
                 return;
             }
 
-            victim.CurrentHp = Math.Max(0, victim.CurrentHp - damage);
+            int actualDamage = Math.Min(victim.CurrentHp, Math.Max(0, damage));
+            victim.CurrentHp = Math.Max(0, victim.CurrentHp - actualDamage);
+            if (actualDamage > 0)
+            {
+                achievementManager.RecordDamageDealt(actualDamage);
+            }
+
             AddCombatLog($"FRIENDLY FIRE! {attacker.Name}'s {weaponLabel} hit {victim.Name} for {damage} dmg ({victim.CurrentHp}/{victim.MaxHp} HP).");
 
             if (victim.CurrentHp <= 0)
             {
                 profile.Coins += victim.CoinDrop;
+                achievementManager.RecordEnemyDefeated(victim.Type, victim.CoinDrop, true);
                 persistenceManager.SaveProfile(profile);
                 AddCombatLog($"{victim.Name} killed by friendly fire! (+{victim.CoinDrop} Coins)");
                 RemoveDefeatedEnemies();
@@ -830,6 +859,7 @@ namespace RogueCards
                 enemy.State = EnemyState.Armed;
                 enemy.ChargeTurnsRemaining = 0;
                 enemy.LockedTargetTiles.Clear();
+                achievementManager.RecordBearTrapStun();
                 ApplyDamageToEnemy(enemy, trap.Damage, false, "Bear Trap");
                 if (enemy.CurrentHp > 0)
                 {
@@ -1219,6 +1249,8 @@ namespace RogueCards
 
         private void EndPlayerTurn(bool usedWait, bool usedSpecial)
         {
+            achievementManager.RecordTurnTaken();
+
             PlayerState player = CurrentRun.Player;
             int extraReduction = usedWait ? GetWaitEquippedCooldownBonus() : 0;
 

@@ -15,9 +15,11 @@ namespace RogueCards
 
         private readonly DataRepository dataRepository;
         private readonly PersistenceManager persistenceManager;
+        private readonly AchievementManager achievementManager;
         private readonly GameDatabase database;
         private readonly PlayerProfile profile;
         private readonly MenuRenderer menuRenderer;
+        private readonly StatsRenderer statsRenderer;
         private readonly GameEngine gameEngine;
         private readonly ArenaRenderer arenaRenderer;
         private readonly Timer animationTimer;
@@ -25,7 +27,6 @@ namespace RogueCards
         private GameScreen currentScreen;
         private Point mouseLocation;
         private string menuStatusMessage;
-        private Rectangle backToMenuButtonRect;
         private float specialAnimProgress;
         private float telegraphPulsePhase;
         private int lastSeenSpecialSeqId;
@@ -39,11 +40,8 @@ namespace RogueCards
         private int selectedUpgradeCardInstanceId;
 
         private readonly Color colorBackground = Color.FromArgb(18, 22, 29);
-        private readonly Color colorPanel = Color.FromArgb(28, 34, 45);
-        private readonly Color colorPanelBorder = Color.FromArgb(58, 69, 88);
         private readonly Color colorAccent = Color.FromArgb(228, 174, 62);
         private readonly Color colorTextPrimary = Color.FromArgb(236, 240, 246);
-        private readonly Color colorTextSecondary = Color.FromArgb(156, 169, 189);
 
         public MainForm()
         {
@@ -69,8 +67,10 @@ namespace RogueCards
             database = dataRepository.InitializeAndLoad();
             persistenceManager = new PersistenceManager(dataRepository);
             profile = persistenceManager.LoadProfile(database, out string profileWarning);
+            achievementManager = new AchievementManager(dataRepository, database, profile, persistenceManager);
             menuRenderer = new MenuRenderer();
-            gameEngine = new GameEngine(database, profile, persistenceManager);
+            statsRenderer = new StatsRenderer();
+            gameEngine = new GameEngine(database, profile, persistenceManager, achievementManager);
             arenaRenderer = new ArenaRenderer();
 
             animationTimer = new Timer();
@@ -79,7 +79,6 @@ namespace RogueCards
             animationTimer.Start();
 
             currentScreen = GameScreen.Menu;
-            backToMenuButtonRect = new Rectangle(28, 18, 180, 38);
             specialAnimProgress = 0f;
             telegraphPulsePhase = 0f;
             lastSeenSpecialSeqId = 0;
@@ -137,6 +136,13 @@ namespace RogueCards
         private void OnAnimationTick(object sender, EventArgs e)
         {
             bool needsRedraw = false;
+            bool hadToast = achievementManager.ActiveToast != null;
+
+            achievementManager.UpdateToasts(0.04f);
+            if (hadToast || achievementManager.ActiveToast != null)
+            {
+                needsRedraw = true;
+            }
 
             if (specialAnimProgress > 0f)
             {
@@ -266,6 +272,10 @@ namespace RogueCards
                 MenuHitbox hit = menuRenderer.HitTest(mouseLocation);
                 Cursor = (hit != null && hit.IsEnabled) ? Cursors.Hand : Cursors.Default;
             }
+            else if (currentScreen == GameScreen.Stats)
+            {
+                Cursor = statsRenderer.IsBackButtonHit(mouseLocation) ? Cursors.Hand : Cursors.Default;
+            }
             else if (currentScreen == GameScreen.Arena)
             {
                 if (dragSourceIndex >= 0)
@@ -285,17 +295,10 @@ namespace RogueCards
                 ArenaHitbox hit = arenaRenderer.HitTest(mouseLocation);
                 Cursor = (hit != null && hit.IsEnabled) ? Cursors.Cross : Cursors.Default;
             }
-            else if (currentScreen == GameScreen.StartingDraft ||
-                     currentScreen == GameScreen.RewardCard ||
-                     currentScreen == GameScreen.RewardUpgrade ||
-                     currentScreen == GameScreen.GameOver)
+            else
             {
                 ArenaHitbox hit = arenaRenderer.HitTest(mouseLocation);
                 Cursor = (hit != null && hit.IsEnabled) ? Cursors.Hand : Cursors.Default;
-            }
-            else
-            {
-                Cursor = backToMenuButtonRect.Contains(mouseLocation) ? Cursors.Hand : Cursors.Default;
             }
 
             Invalidate();
@@ -348,25 +351,23 @@ namespace RogueCards
                 return;
             }
 
+            if (currentScreen == GameScreen.Stats)
+            {
+                if (statsRenderer.IsBackButtonHit(e.Location))
+                {
+                    SetScreen(GameScreen.Menu);
+                }
+
+                return;
+            }
+
             if (currentScreen == GameScreen.Arena || currentScreen == GameScreen.Aiming)
             {
                 HandleArenaMouseDown(e.Location);
                 return;
             }
 
-            if (currentScreen == GameScreen.StartingDraft ||
-                currentScreen == GameScreen.RewardCard ||
-                currentScreen == GameScreen.RewardUpgrade ||
-                currentScreen == GameScreen.GameOver)
-            {
-                HandleOverlayClick(e.Location);
-                return;
-            }
-
-            if (backToMenuButtonRect.Contains(e.Location))
-            {
-                SetScreen(GameScreen.Menu);
-            }
+            HandleOverlayClick(e.Location);
         }
 
         private void OnFormMouseUp(object sender, MouseEventArgs e)
@@ -687,6 +688,7 @@ namespace RogueCards
             profile.Coins -= weapon.UnlockCost;
             profile.UnlockedWeaponIds.Add(weapon.Id);
             persistenceManager.SaveProfile(profile);
+            achievementManager.EvaluateWellEquipped();
             menuStatusMessage = $"Unlocked weapon '{weapon.Name}' for {weapon.UnlockCost} Coins!";
             Invalidate();
         }
@@ -713,6 +715,7 @@ namespace RogueCards
             profile.Coins -= upgrade.Cost;
             profile.UnlockedUpgradeIds.Add(upgrade.Id);
             persistenceManager.SaveProfile(profile);
+            achievementManager.EvaluateWellEquipped();
             menuStatusMessage = $"Purchased permanent upgrade '{upgrade.Name}' for {upgrade.Cost} Coins!";
             Invalidate();
         }
@@ -902,22 +905,20 @@ namespace RogueCards
                     persistenceManager.HasActiveRunSave(),
                     mouseLocation,
                     menuStatusMessage);
-                return;
             }
-
-            if (currentScreen == GameScreen.StartingDraft)
+            else if (currentScreen == GameScreen.Stats)
+            {
+                statsRenderer.Render(g, database, profile, achievementManager, mouseLocation);
+            }
+            else if (currentScreen == GameScreen.StartingDraft)
             {
                 arenaRenderer.RenderStartingDraft(g, gameEngine, profile, mouseLocation);
-                return;
             }
-
-            if (currentScreen == GameScreen.RewardCard)
+            else if (currentScreen == GameScreen.RewardCard)
             {
                 arenaRenderer.RenderRewardCard(g, gameEngine, profile, mouseLocation);
-                return;
             }
-
-            if (currentScreen == GameScreen.RewardUpgrade)
+            else if (currentScreen == GameScreen.RewardUpgrade)
             {
                 arenaRenderer.RenderRewardUpgrade(
                     g,
@@ -926,16 +927,12 @@ namespace RogueCards
                     mouseLocation,
                     selectedUpgradeModifierIndex,
                     selectedUpgradeCardInstanceId);
-                return;
             }
-
-            if (currentScreen == GameScreen.GameOver)
+            else if (currentScreen == GameScreen.GameOver)
             {
                 arenaRenderer.RenderGameOver(g, gameEngine, profile, mouseLocation);
-                return;
             }
-
-            if (currentScreen == GameScreen.Arena || currentScreen == GameScreen.Aiming)
+            else
             {
                 AimPreviewResult preview = (currentScreen == GameScreen.Aiming && hasAimDirection)
                     ? gameEngine.GetAimPreview(currentAimDirection)
@@ -951,73 +948,30 @@ namespace RogueCards
                     preview,
                     dragSourceIndex,
                     dragHoverTargetIndex);
-                return;
             }
 
-            DrawSecondaryScreenView(g);
+            if (achievementManager.ActiveToast != null)
+            {
+                DrawAchievementToast(g, achievementManager.ActiveToast);
+            }
         }
 
-        private void DrawSecondaryScreenView(Graphics g)
+        private void DrawAchievementToast(Graphics g, AchievementToast toast)
         {
-            Rectangle fullRect = new Rectangle(0, 0, WindowWidth, WindowHeight);
-            using (LinearGradientBrush bgBrush = new LinearGradientBrush(
-                fullRect,
-                Color.FromArgb(16, 20, 27),
-                Color.FromArgb(24, 30, 41),
-                LinearGradientMode.Vertical))
-            {
-                g.FillRectangle(bgBrush, fullRect);
-            }
+            Rectangle toastRect = new Rectangle((WindowWidth / 2) - 270, 12, 540, 58);
+            Rectangle shadowRect = new Rectangle(toastRect.X + 4, toastRect.Y + 4, toastRect.Width, toastRect.Height);
 
-            Rectangle headerRect = new Rectangle(0, 0, WindowWidth, 72);
-            using (SolidBrush barBrush = new SolidBrush(Color.FromArgb(20, 25, 34)))
-            {
-                g.FillRectangle(barBrush, headerRect);
-            }
+            DrawRoundedBox(g, shadowRect, 10, Color.FromArgb(145, 0, 0, 0), Color.Transparent);
+            DrawRoundedBox(g, toastRect, 10, Color.FromArgb(242, 26, 38, 34), colorAccent);
 
-            using (Pen borderPen = new Pen(colorPanelBorder, 1.5f))
-            {
-                g.DrawLine(borderPen, 0, 72, WindowWidth, 72);
-            }
-
-            bool hoverBack = backToMenuButtonRect.Contains(mouseLocation);
-            DrawRoundedBox(
-                g,
-                backToMenuButtonRect,
-                8,
-                hoverBack ? Color.FromArgb(52, 65, 86) : Color.FromArgb(37, 46, 61),
-                hoverBack ? colorAccent : colorPanelBorder);
-
-            using (Font btnFont = new Font("Segoe UI", 10f, FontStyle.Bold))
+            using (Font titleFont = new Font("Segoe UI", 10.5f, FontStyle.Bold))
+            using (Font subFont = new Font("Segoe UI", 9.2f, FontStyle.Bold))
+            using (SolidBrush goldBrush = new SolidBrush(colorAccent))
             using (SolidBrush whiteBrush = new SolidBrush(colorTextPrimary))
             using (StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
             {
-                g.DrawString("< Back to Menu", btnFont, whiteBrush, backToMenuButtonRect, sf);
-            }
-
-            Rectangle stageRect = new Rectangle(28, 92, WindowWidth - 56, WindowHeight - 120);
-            DrawRoundedBox(g, stageRect, 12, colorPanel, colorPanelBorder);
-
-            string title = currentScreen == GameScreen.Stats
-                ? "ACHIEVEMENTS & LIFETIME STATISTICS"
-                : $"ACTIVE VIEW: {currentScreen.ToString().ToUpperInvariant()}";
-
-            string heroName = database.Characters.TryGetValue(profile.SelectedCharacterId, out CharacterDefinition selectedHero)
-                ? selectedHero.Name
-                : "Viking";
-
-            string subtitle = currentScreen == GameScreen.Stats
-                ? $"Loaded {database.AchievementList.Count} Achievements from Data/achievements.txt. Press ESC or click Back to Menu."
-                : $"Selected Hero: {heroName} | Unlocked Weapons: {profile.UnlockedWeaponIds.Count} | Press ESC or click Back to Menu.";
-
-            using (Font titleFont = new Font("Segoe UI", 24f, FontStyle.Bold))
-            using (Font subFont = new Font("Segoe UI", 12f, FontStyle.Regular))
-            using (SolidBrush accentBrush = new SolidBrush(colorAccent))
-            using (SolidBrush mutedBrush = new SolidBrush(colorTextSecondary))
-            using (StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
-            {
-                g.DrawString(title, titleFont, accentBrush, new Rectangle(80, 260, WindowWidth - 160, 50), sf);
-                g.DrawString(subtitle, subFont, mutedBrush, new Rectangle(120, 325, WindowWidth - 240, 50), sf);
+                g.DrawString(toast.Title, titleFont, goldBrush, new Rectangle(toastRect.X + 12, toastRect.Y + 6, toastRect.Width - 24, 24), sf);
+                g.DrawString(toast.Subtitle, subFont, whiteBrush, new Rectangle(toastRect.X + 12, toastRect.Y + 30, toastRect.Width - 24, 22), sf);
             }
         }
 
@@ -1032,11 +986,20 @@ namespace RogueCards
                 path.AddArc(bounds.X, bounds.Bottom - diameter, diameter, diameter, 90, 90);
                 path.CloseFigure();
 
-                using (SolidBrush fillBrush = new SolidBrush(fillColor))
-                using (Pen borderPen = new Pen(borderColor, 1.5f))
+                if (fillColor.A > 0)
                 {
-                    g.FillPath(fillBrush, path);
-                    g.DrawPath(borderPen, path);
+                    using (SolidBrush fillBrush = new SolidBrush(fillColor))
+                    {
+                        g.FillPath(fillBrush, path);
+                    }
+                }
+
+                if (borderColor.A > 0)
+                {
+                    using (Pen borderPen = new Pen(borderColor, 2f))
+                    {
+                        g.DrawPath(borderPen, path);
+                    }
                 }
             }
         }

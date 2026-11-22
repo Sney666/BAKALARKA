@@ -1,5 +1,4 @@
-﻿
-#nullable disable
+﻿#nullable disable
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -27,7 +26,9 @@ namespace RogueCards
         RewardSelectTargetCard,
         RewardApplyUpgrade,
         RewardReroll,
-        RewardSkip
+        RewardSkip,
+        GameOverNewRun,
+        GameOverMenu
     }
 
     public class ArenaHitbox
@@ -130,6 +131,7 @@ namespace RogueCards
             PlayerProfile profile,
             Point mouseLocation,
             float specialAnimProgress,
+            float telegraphPulsePhase,
             AimPreviewResult aimPreview,
             int dragSourceIndex,
             int dragHoverTargetIndex)
@@ -145,7 +147,7 @@ namespace RogueCards
             DrawBackground(g);
             DrawTopStatusBar(g, engine, profile, mouseLocation);
             DrawLeftTacticalPanel(g, engine);
-            DrawArenaGrid(g, engine, mouseLocation, specialAnimProgress, aimPreview);
+            DrawArenaGrid(g, engine, mouseLocation, specialAnimProgress, telegraphPulsePhase, aimPreview);
             DrawRightCombatLogPanel(g, engine);
             DrawBottomDock(g, engine, mouseLocation, dragSourceIndex, dragHoverTargetIndex);
 
@@ -156,6 +158,93 @@ namespace RogueCards
                 Rectangle ghostRect = new Rectangle(mouseLocation.X - 56, mouseLocation.Y - 80, 112, 160);
                 DrawEquippedCard(g, engine, draggedCard, ghostRect, dragSourceIndex, false, true, false);
             }
+        }
+
+        public void RenderGameOver(
+            Graphics g,
+            GameEngine engine,
+            PlayerProfile profile,
+            Point mouseLocation)
+        {
+            hitboxes.Clear();
+            equippedSlotRects.Clear();
+
+            DrawBackground(g);
+
+            ActiveRunState run = engine.CurrentRun;
+            bool isVictory = run != null && run.IsVictory;
+            Color accent = isVictory ? colorGold : colorRed;
+
+            Rectangle cardRect = new Rectangle((WindowWidth / 2) - 340, 140, 680, 420);
+            DrawRoundedBox(g, cardRect, 14, colorPanel, accent, 2.5f);
+
+            using (Font titleFont = new Font("Segoe UI", 30f, FontStyle.Bold))
+            using (Font subFont = new Font("Segoe UI", 12.5f, FontStyle.Regular))
+            using (Font statFont = new Font("Segoe UI", 11.5f, FontStyle.Bold))
+            using (SolidBrush accentBrush = new SolidBrush(accent))
+            using (SolidBrush primaryBrush = new SolidBrush(colorTextPrimary))
+            using (SolidBrush secondaryBrush = new SolidBrush(colorTextSecondary))
+            using (StringFormat sf = CreateCenterFormat())
+            {
+                string title = isVictory ? "VICTORY!" : "DEFEAT";
+                g.DrawString(title, titleFont, accentBrush, new Rectangle(cardRect.X + 20, cardRect.Y + 32, cardRect.Width - 40, 56), sf);
+
+                string reason = run != null ? run.GameOverReason : "Run ended.";
+                g.DrawString(reason, subFont, primaryBrush, new Rectangle(cardRect.X + 40, cardRect.Y + 104, cardRect.Width - 80, 56), sf);
+
+                Rectangle statsBox = new Rectangle(cardRect.X + 60, cardRect.Y + 178, cardRect.Width - 120, 116);
+                DrawRoundedBox(g, statsBox, 10, Color.FromArgb(22, 28, 38), colorBorder, 1.2f);
+
+                int waveReached = run != null ? run.CurrentWave : 1;
+                int turns = run != null ? run.TurnNumber : 1;
+                string heroName = engine.GetActiveCharacterDefinition().Name;
+
+                g.DrawString($"Hero: {heroName}   |   Wave Reached: {waveReached} / 10", statFont, secondaryBrush, new Rectangle(statsBox.X, statsBox.Y + 18, statsBox.Width, 34), sf);
+                g.DrawString($"Turns Taken: {turns}   |   Total Coins: {profile.Coins}", statFont, accentBrush, new Rectangle(statsBox.X, statsBox.Y + 58, statsBox.Width, 34), sf);
+            }
+
+            Rectangle retryBtn = new Rectangle(cardRect.X + 60, cardRect.Bottom - 84, 260, 50);
+            bool hoverRetry = retryBtn.Contains(mouseLocation);
+            DrawGradientButton(
+                g,
+                retryBtn,
+                hoverRetry ? Color.FromArgb(238, 184, 72) : Color.FromArgb(206, 150, 42),
+                hoverRetry ? Color.FromArgb(196, 140, 34) : Color.FromArgb(164, 112, 24),
+                colorGold,
+                "START NEW RUN",
+                11.5f,
+                Color.FromArgb(18, 20, 26));
+
+            hitboxes.Add(new ArenaHitbox
+            {
+                Bounds = retryBtn,
+                ActionType = ArenaActionType.GameOverNewRun,
+                IsEnabled = true
+            });
+
+            Rectangle menuBtn = new Rectangle(cardRect.Right - 320, cardRect.Bottom - 84, 260, 50);
+            bool hoverMenu = menuBtn.Contains(mouseLocation);
+            DrawRoundedBox(
+                g,
+                menuBtn,
+                8,
+                hoverMenu ? Color.FromArgb(56, 68, 88) : Color.FromArgb(38, 46, 61),
+                hoverMenu ? colorCyan : colorBorder,
+                1.5f);
+
+            using (Font btnFont = new Font("Segoe UI", 11.5f, FontStyle.Bold))
+            using (SolidBrush whiteBrush = new SolidBrush(colorTextPrimary))
+            using (StringFormat sf = CreateCenterFormat())
+            {
+                g.DrawString("RETURN TO MENU", btnFont, whiteBrush, menuBtn, sf);
+            }
+
+            hitboxes.Add(new ArenaHitbox
+            {
+                Bounds = menuBtn,
+                ActionType = ArenaActionType.GameOverMenu,
+                IsEnabled = true
+            });
         }
 
         public void RenderStartingDraft(
@@ -502,7 +591,7 @@ namespace RogueCards
             bool hoverReroll = rerollBtn.Contains(mouseLocation) && canAfford;
 
             string rerollLabel = hasFreeReroll
-                ? $"REROLL (FREE — CHARISMA)"
+                ? "REROLL (FREE — CHARISMA)"
                 : $"REROLL ({reward.NextRerollCost} COINS)";
 
             if (canAfford)
@@ -669,6 +758,7 @@ namespace RogueCards
             using (Font badgeFont = new Font("Segoe UI", 8.5f, FontStyle.Bold))
             using (Font descFont = new Font("Segoe UI", 9.4f, FontStyle.Regular))
             using (SolidBrush whiteBrush = new SolidBrush(Color.White))
+            using (SolidBrush darkTextBrush = new SolidBrush(Color.FromArgb(18, 20, 26)))
             using (SolidBrush primaryBrush = new SolidBrush(colorTextPrimary))
             using (SolidBrush greenBrush = new SolidBrush(Color.FromArgb(132, 234, 166)))
             using (StringFormat centerSf = CreateCenterFormat())
@@ -702,8 +792,7 @@ namespace RogueCards
                 Rectangle footerBtn = new Rectangle(drawRect.X + 12, drawRect.Bottom - 44, drawRect.Width - 24, 32);
                 Color footerBg = isSelected ? Color.FromArgb(186, 134, 36) : Color.FromArgb(44, 54, 72);
                 DrawRoundedBox(g, footerBtn, 6, footerBg, isSelected ? colorGold : catColor, 1.2f);
-                using var textBrush = new SolidBrush(isSelected ? Color.FromArgb(18, 20, 26) : Color.White);
-                g.DrawString(footerActionLabel, badgeFont, textBrush, footerBtn, centerSf);
+                g.DrawString(footerActionLabel, badgeFont, isSelected ? darkTextBrush : whiteBrush, footerBtn, centerSf);
             }
         }
 
@@ -885,9 +974,9 @@ namespace RogueCards
                 g.DrawString("TACTICAL LEGEND", headerFont, goldBrush, legendPanel.X + 14, legendPanel.Y + 11);
 
                 DrawLegendRow(g, legendPanel.X + 14, legendPanel.Y + 38, colorCyan, "Cyan Tile: Move / Movement Card Aim Preview", itemFont, textBrush);
-                DrawLegendRow(g, legendPanel.X + 14, legendPanel.Y + 62, colorOrange, "Orange/Red Tile: Weapon Aim Preview / Enemy Attack", itemFont, textBrush);
-                DrawLegendRow(g, legendPanel.X + 14, legendPanel.Y + 86, colorGreen, "Green Toxic Glow: Poison Ground Hazard", itemFont, textBrush);
-                DrawLegendRow(g, legendPanel.X + 14, legendPanel.Y + 110, colorGold, "Spiked Ring: Bear Trap Hazard (Arms on Leave)", itemFont, textBrush);
+                DrawLegendRow(g, legendPanel.X + 14, legendPanel.Y + 62, colorRed, "Pulsing Red Tile: Enemy Charged Attack Telegraph", itemFont, textBrush);
+                DrawLegendRow(g, legendPanel.X + 14, legendPanel.Y + 86, colorGreen, "Green Toxic Glow: Poison Ground Hazard (3T)", itemFont, textBrush);
+                DrawLegendRow(g, legendPanel.X + 14, legendPanel.Y + 110, colorGold, "Spiked Ring: Armed Bear Trap (2 Dmg + Stun)", itemFont, textBrush);
             }
 
             Rectangle controlsPanel = new Rectangle(20, 400, 384, 98);
@@ -910,6 +999,7 @@ namespace RogueCards
             GameEngine engine,
             Point mouseLocation,
             float specialAnimProgress,
+            float telegraphPulsePhase,
             AimPreviewResult aimPreview)
         {
             Color frameBorder = engine.IsExecutingQueue ? colorOrange : colorGold;
@@ -996,6 +1086,7 @@ namespace RogueCards
             }
 
             DrawHazardsOnGrid(g, engine.CurrentRun.Hazards, startX, startY);
+            DrawEnemyTelegraphs(g, engine.CurrentRun.Enemies, startX, startY, telegraphPulsePhase);
 
             if (engine.IsExecutingQueue && aimPreview != null && aimPreview.IsValidAim)
             {
@@ -1005,6 +1096,22 @@ namespace RogueCards
             if (specialAnimProgress > 0f && !string.IsNullOrEmpty(engine.LastSpecialEffectType))
             {
                 DrawSpecialAbilityEffect(g, startX, startY, engine.LastSpecialOrigin, engine.LastSpecialEffectType, specialAnimProgress);
+            }
+
+            foreach (EnemyInstance enemy in engine.CurrentRun.Enemies)
+            {
+                if (enemy.CurrentHp <= 0 || !enemy.Position.IsValid(GridSize))
+                {
+                    continue;
+                }
+
+                Rectangle enemyTileRect = new Rectangle(
+                    startX + (enemy.Position.X * (TileSize + TileGap)),
+                    startY + (enemy.Position.Y * (TileSize + TileGap)),
+                    TileSize,
+                    TileSize);
+
+                DrawEnemySpriteOnTile(g, enemyTileRect, enemy, telegraphPulsePhase);
             }
 
             PlayerState player = engine.CurrentRun.Player;
@@ -1028,6 +1135,388 @@ namespace RogueCards
                     string bannerText = $"AIMING [{engine.CurrentExecutingQueueIndex + 1}/{player.EquippedQueue.Count}]: {activeCard.Definition.Name} ({activeCard.Definition.Targeting}) — Click to Confirm";
                     g.DrawString(bannerText, bannerFont, whiteBrush, bannerRect, sf);
                 }
+            }
+        }
+
+        private void DrawEnemyTelegraphs(
+            Graphics g,
+            List<EnemyInstance> enemies,
+            int startX,
+            int startY,
+            float pulsePhase)
+        {
+            double pulse = 0.5 + (0.5 * Math.Sin(pulsePhase));
+            int fillAlpha = 68 + (int)(pulse * 62);
+            int borderAlpha = 165 + (int)(pulse * 85);
+
+            foreach (EnemyInstance enemy in enemies)
+            {
+                if (enemy.CurrentHp <= 0 || enemy.State != EnemyState.Charging || enemy.LockedTargetTiles.Count == 0)
+                {
+                    continue;
+                }
+
+                foreach (GridPos target in enemy.LockedTargetTiles)
+                {
+                    if (!target.IsValid(GridSize))
+                    {
+                        continue;
+                    }
+
+                    Rectangle tileRect = new Rectangle(
+                        startX + (target.X * (TileSize + TileGap)),
+                        startY + (target.Y * (TileSize + TileGap)),
+                        TileSize,
+                        TileSize);
+
+                    DrawRoundedBox(
+                        g,
+                        tileRect,
+                        7,
+                        Color.FromArgb(fillAlpha, 224, 48, 48),
+                        Color.FromArgb(borderAlpha, 255, 96, 96),
+                        2.2f);
+
+                    using (Pen warnPen = new Pen(Color.FromArgb(borderAlpha, 255, 196, 120), 1.8f))
+                    {
+                        g.DrawLine(warnPen, tileRect.X + 8, tileRect.Y + 8, tileRect.X + 18, tileRect.Y + 8);
+                        g.DrawLine(warnPen, tileRect.X + 8, tileRect.Y + 8, tileRect.X + 8, tileRect.Y + 18);
+                        g.DrawLine(warnPen, tileRect.Right - 8, tileRect.Bottom - 8, tileRect.Right - 18, tileRect.Bottom - 8);
+                        g.DrawLine(warnPen, tileRect.Right - 8, tileRect.Bottom - 8, tileRect.Right - 8, tileRect.Bottom - 18);
+                    }
+
+                    using (Font warnFont = new Font("Segoe UI", 9.5f, FontStyle.Bold))
+                    using (SolidBrush warnBrush = new SolidBrush(Color.FromArgb(borderAlpha, 255, 226, 180)))
+                    {
+                        g.DrawString("!", warnFont, warnBrush, tileRect.Right - 16, tileRect.Y + 2);
+                    }
+                }
+            }
+        }
+
+        private void DrawEnemySpriteOnTile(
+            Graphics g,
+            Rectangle tileRect,
+            EnemyInstance enemy,
+            float pulsePhase)
+        {
+            bool isCharging = enemy.State == EnemyState.Charging;
+            bool isBoss = enemy.Type == EnemyType.VikingChief;
+            double pulse = 0.5 + (0.5 * Math.Sin(pulsePhase * 1.4));
+
+            Color frameBorder = isCharging
+                ? Color.FromArgb(180 + (int)(pulse * 75), 255, 86, 86)
+                : (isBoss ? colorGold : Color.FromArgb(156, 76, 76));
+
+            Color tileTint = isBoss
+                ? Color.FromArgb(58, 126, 46, 38)
+                : Color.FromArgb(44, 118, 48, 52);
+
+            DrawRoundedBox(
+                g,
+                new Rectangle(tileRect.X + 2, tileRect.Y + 2, tileRect.Width - 4, tileRect.Height - 4),
+                6,
+                tileTint,
+                frameBorder,
+                isCharging || isBoss ? 2.2f : 1.5f);
+
+            int cx = tileRect.X + (tileRect.Width / 2);
+            int cy = tileRect.Y + (tileRect.Height / 2) + 2;
+
+            switch (enemy.Type)
+            {
+                case EnemyType.Pawn:
+                    DrawPawnSprite(g, cx, cy);
+                    break;
+
+                case EnemyType.Archer:
+                    DrawArcherSprite(g, cx, cy);
+                    break;
+
+                case EnemyType.Spearman:
+                    DrawSpearmanSprite(g, cx, cy);
+                    break;
+
+                case EnemyType.Shaman:
+                    DrawShamanSprite(g, cx, cy);
+                    break;
+
+                case EnemyType.VikingChief:
+                    DrawBossSprite(g, cx, cy);
+                    break;
+            }
+
+            string intentText;
+            Color intentBg;
+            Color intentFg;
+
+            if (enemy.IsStunned)
+            {
+                intentText = "STUNNED";
+                intentBg = Color.FromArgb(148, 108, 28);
+                intentFg = Color.White;
+            }
+            else if (enemy.State == EnemyState.Unarmed)
+            {
+                intentText = "EQUIPPING";
+                intentBg = Color.FromArgb(62, 70, 86);
+                intentFg = colorTextSecondary;
+            }
+            else if (enemy.State == EnemyState.Charging)
+            {
+                intentText = enemy.ChargeTurnsRemaining > 1
+                    ? $"CHARGE {enemy.ChargeTurnsRemaining}T!"
+                    : "STRIKE!";
+                intentBg = Color.FromArgb(196, 42, 42);
+                intentFg = Color.White;
+            }
+            else
+            {
+                intentText = enemy.EquippedWeaponLabel;
+                intentBg = Color.FromArgb(42, 50, 66);
+                intentFg = colorGold;
+            }
+
+            using (Font badgeFont = new Font("Segoe UI", 6.3f, FontStyle.Bold))
+            using (Font nameFont = new Font("Segoe UI", 6.8f, FontStyle.Bold))
+            using (SolidBrush intentFgBrush = new SolidBrush(intentFg))
+            using (SolidBrush nameBrush = new SolidBrush(colorTextPrimary))
+            using (StringFormat sf = CreateCenterFormat())
+            {
+                Rectangle intentRect = new Rectangle(tileRect.X + 4, tileRect.Y + 2, tileRect.Width - 8, 12);
+                DrawRoundedBox(g, intentRect, 3, intentBg, intentBg, 0f);
+                g.DrawString(intentText, badgeFont, intentFgBrush, intentRect, sf);
+
+                Rectangle nameRect = new Rectangle(tileRect.X + 3, tileRect.Bottom - 22, tileRect.Width - 6, 11);
+                using (SolidBrush labelBg = new SolidBrush(Color.FromArgb(180, 14, 18, 25)))
+                {
+                    g.FillRectangle(labelBg, nameRect);
+                }
+
+                g.DrawString(enemy.Name, nameFont, nameBrush, nameRect, sf);
+            }
+
+            if (enemy.PoisonTurnsRemaining > 0)
+            {
+                Rectangle poisonDot = new Rectangle(tileRect.X + 5, tileRect.Y + 16, 16, 12);
+                DrawRoundedBox(g, poisonDot, 3, Color.FromArgb(46, 142, 76), Color.FromArgb(124, 240, 152), 1f);
+                using (Font pFont = new Font("Segoe UI", 6.2f, FontStyle.Bold))
+                using (SolidBrush whiteBrush = new SolidBrush(Color.White))
+                using (StringFormat sf = CreateCenterFormat())
+                {
+                    g.DrawString($"P{enemy.PoisonTurnsRemaining}", pFont, whiteBrush, poisonDot, sf);
+                }
+            }
+
+            Rectangle hpBg = new Rectangle(tileRect.X + 6, tileRect.Bottom - 10, tileRect.Width - 12, 7);
+            using (SolidBrush bgBrush = new SolidBrush(Color.FromArgb(35, 18, 22)))
+            using (Pen borderPen = new Pen(Color.FromArgb(16, 20, 28), 1f))
+            {
+                g.FillRectangle(bgBrush, hpBg);
+                float ratio = enemy.MaxHp > 0 ? Math.Clamp((float)enemy.CurrentHp / enemy.MaxHp, 0f, 1f) : 0f;
+                int fillW = (int)(hpBg.Width * ratio);
+                if (fillW > 0)
+                {
+                    using (SolidBrush fillBrush = new SolidBrush(isBoss ? colorGold : colorRed))
+                    {
+                        g.FillRectangle(fillBrush, hpBg.X, hpBg.Y, fillW, hpBg.Height);
+                    }
+                }
+
+                g.DrawRectangle(borderPen, hpBg);
+            }
+        }
+
+        private void DrawPawnSprite(Graphics g, int cx, int cy)
+        {
+            using (SolidBrush tunicBrush = new SolidBrush(Color.FromArgb(148, 62, 58)))
+            using (SolidBrush helmBrush = new SolidBrush(Color.FromArgb(136, 146, 162)))
+            using (SolidBrush skinBrush = new SolidBrush(Color.FromArgb(222, 182, 148)))
+            {
+                g.FillRectangle(tunicBrush, cx - 10, cy - 2, 20, 16);
+                g.FillEllipse(skinBrush, cx - 7, cy - 13, 14, 14);
+                g.FillPie(helmBrush, cx - 8, cy - 17, 16, 13, 180, 180);
+            }
+
+            Rectangle shieldRect = new Rectangle(cx - 21, cy - 4, 15, 15);
+            using (SolidBrush shieldWood = new SolidBrush(Color.FromArgb(132, 86, 48)))
+            using (Pen rimPen = new Pen(Color.FromArgb(182, 192, 206), 1.6f))
+            {
+                g.FillEllipse(shieldWood, shieldRect);
+                g.DrawEllipse(rimPen, shieldRect);
+            }
+
+            using (Pen shaftPen = new Pen(Color.FromArgb(136, 92, 52), 2.2f))
+            using (SolidBrush bladeBrush = new SolidBrush(Color.FromArgb(196, 208, 222)))
+            {
+                g.DrawLine(shaftPen, cx + 12, cy + 12, cx + 18, cy - 10);
+                Point[] blade = new Point[]
+                {
+                    new Point(cx + 16, cy - 9),
+                    new Point(cx + 24, cy - 12),
+                    new Point(cx + 23, cy - 2),
+                    new Point(cx + 15, cy - 3)
+                };
+                g.FillPolygon(bladeBrush, blade);
+            }
+        }
+
+        private void DrawArcherSprite(Graphics g, int cx, int cy)
+        {
+            using (SolidBrush cloakBrush = new SolidBrush(Color.FromArgb(46, 118, 72)))
+            using (SolidBrush hoodBrush = new SolidBrush(Color.FromArgb(34, 92, 56)))
+            using (SolidBrush skinBrush = new SolidBrush(Color.FromArgb(224, 188, 156)))
+            {
+                Point[] cloak = new Point[]
+                {
+                    new Point(cx - 12, cy + 14),
+                    new Point(cx - 9, cy - 3),
+                    new Point(cx + 9, cy - 3),
+                    new Point(cx + 12, cy + 14)
+                };
+                g.FillPolygon(cloakBrush, cloak);
+                g.FillEllipse(skinBrush, cx - 6, cy - 13, 12, 12);
+                Point[] hood = new Point[]
+                {
+                    new Point(cx - 9, cy - 6),
+                    new Point(cx, cy - 19),
+                    new Point(cx + 9, cy - 6)
+                };
+                g.FillPolygon(hoodBrush, hood);
+            }
+
+            using (Pen bowPen = new Pen(Color.FromArgb(174, 122, 62), 2.4f))
+            using (Pen stringPen = new Pen(Color.FromArgb(224, 228, 236), 1.1f))
+            {
+                g.DrawArc(bowPen, cx + 4, cy - 14, 16, 28, -80, 160);
+                g.DrawLine(stringPen, cx + 12, cy - 13, cx + 12, cy + 13);
+                g.DrawLine(stringPen, cx + 6, cy, cx + 22, cy);
+            }
+        }
+
+        private void DrawSpearmanSprite(Graphics g, int cx, int cy)
+        {
+            using (SolidBrush armorBrush = new SolidBrush(Color.FromArgb(92, 108, 134)))
+            using (Pen trimPen = new Pen(Color.FromArgb(178, 192, 212), 1.4f))
+            using (SolidBrush skinBrush = new SolidBrush(Color.FromArgb(220, 182, 150)))
+            {
+                g.FillRectangle(armorBrush, cx - 11, cy - 3, 22, 17);
+                g.DrawRectangle(trimPen, cx - 11, cy - 3, 22, 17);
+                g.FillEllipse(skinBrush, cx - 7, cy - 13, 14, 13);
+                g.FillPie(armorBrush, cx - 9, cy - 18, 18, 14, 180, 180);
+            }
+
+            using (Pen spearPen = new Pen(Color.FromArgb(156, 112, 64), 2.4f))
+            using (SolidBrush tipBrush = new SolidBrush(Color.FromArgb(214, 226, 240)))
+            {
+                g.DrawLine(spearPen, cx - 16, cy + 14, cx + 18, cy - 15);
+                Point[] tip = new Point[]
+                {
+                    new Point(cx + 15, cy - 17),
+                    new Point(cx + 25, cy - 20),
+                    new Point(cx + 21, cy - 11)
+                };
+                g.FillPolygon(tipBrush, tip);
+            }
+        }
+
+        private void DrawShamanSprite(Graphics g, int cx, int cy)
+        {
+            using (SolidBrush robeBrush = new SolidBrush(Color.FromArgb(92, 54, 128)))
+            using (SolidBrush maskBrush = new SolidBrush(Color.FromArgb(214, 196, 158)))
+            using (SolidBrush eyeBrush = new SolidBrush(Color.FromArgb(92, 236, 128)))
+            {
+                Point[] robe = new Point[]
+                {
+                    new Point(cx - 13, cy + 15),
+                    new Point(cx - 8, cy - 4),
+                    new Point(cx + 8, cy - 4),
+                    new Point(cx + 13, cy + 15)
+                };
+                g.FillPolygon(robeBrush, robe);
+                g.FillEllipse(maskBrush, cx - 8, cy - 16, 16, 16);
+                g.FillEllipse(eyeBrush, cx - 5, cy - 10, 4, 4);
+                g.FillEllipse(eyeBrush, cx + 1, cy - 10, 4, 4);
+            }
+
+            using (SolidBrush vialBrush = new SolidBrush(Color.FromArgb(88, 228, 118)))
+            using (Pen vialBorder = new Pen(Color.FromArgb(204, 248, 214), 1.3f))
+            {
+                g.FillEllipse(vialBrush, cx + 10, cy - 2, 11, 11);
+                g.DrawEllipse(vialBorder, cx + 10, cy - 2, 11, 11);
+                g.FillEllipse(vialBrush, cx - 20, cy + 1, 9, 9);
+                g.DrawEllipse(vialBorder, cx - 20, cy + 1, 9, 9);
+            }
+        }
+
+        private void DrawBossSprite(Graphics g, int cx, int cy)
+        {
+            using (SolidBrush capeBrush = new SolidBrush(Color.FromArgb(148, 34, 38)))
+            using (Pen goldPen = new Pen(colorGold, 2f))
+            {
+                Point[] body = new Point[]
+                {
+                    new Point(cx - 21, cy + 16),
+                    new Point(cx - 16, cy - 4),
+                    new Point(cx + 16, cy - 4),
+                    new Point(cx + 21, cy + 16)
+                };
+                g.FillPolygon(capeBrush, body);
+                g.DrawPolygon(goldPen, body);
+            }
+
+            using (SolidBrush skinBrush = new SolidBrush(Color.FromArgb(224, 178, 142)))
+            using (SolidBrush beardBrush = new SolidBrush(Color.FromArgb(124, 72, 34)))
+            {
+                g.FillEllipse(skinBrush, cx - 10, cy - 14, 20, 18);
+                Point[] beard = new Point[]
+                {
+                    new Point(cx - 10, cy - 4),
+                    new Point(cx + 10, cy - 4),
+                    new Point(cx + 7, cy + 8),
+                    new Point(cx, cy + 12),
+                    new Point(cx - 7, cy + 8)
+                };
+                g.FillPolygon(beardBrush, beard);
+            }
+
+            using (SolidBrush hornBrush = new SolidBrush(Color.FromArgb(244, 232, 198)))
+            using (SolidBrush crownBrush = new SolidBrush(colorGold))
+            {
+                Point[] leftHorn = new Point[]
+                {
+                    new Point(cx - 10, cy - 12),
+                    new Point(cx - 24, cy - 18),
+                    new Point(cx - 19, cy - 26),
+                    new Point(cx - 14, cy - 18)
+                };
+                Point[] rightHorn = new Point[]
+                {
+                    new Point(cx + 10, cy - 12),
+                    new Point(cx + 24, cy - 18),
+                    new Point(cx + 19, cy - 26),
+                    new Point(cx + 14, cy - 18)
+                };
+                g.FillPolygon(hornBrush, leftHorn);
+                g.FillPolygon(hornBrush, rightHorn);
+
+                Point[] crown = new Point[]
+                {
+                    new Point(cx - 11, cy - 11),
+                    new Point(cx - 10, cy - 21),
+                    new Point(cx - 4, cy - 15),
+                    new Point(cx, cy - 23),
+                    new Point(cx + 4, cy - 15),
+                    new Point(cx + 10, cy - 21),
+                    new Point(cx + 11, cy - 11)
+                };
+                g.FillPolygon(crownBrush, crown);
+            }
+
+            using (Pen axePen = new Pen(Color.FromArgb(196, 208, 224), 2.5f))
+            {
+                g.DrawLine(axePen, cx - 22, cy + 12, cx - 26, cy - 8);
+                g.DrawLine(axePen, cx + 22, cy + 12, cx + 26, cy - 8);
             }
         }
 
@@ -1507,11 +1996,12 @@ namespace RogueCards
             DrawRoundedBox(g, handPanel, 10, colorPanel, colorBorder, 1.5f);
 
             using (Font headerFont = new Font("Segoe UI", 9.8f, FontStyle.Bold))
+            using (Font hintFont = new Font("Segoe UI", 8.2f, FontStyle.Regular))
             using (SolidBrush goldBrush = new SolidBrush(colorGold))
             using (SolidBrush mutedBrush = new SolidBrush(colorTextSecondary))
             {
                 g.DrawString($"HAND ({player.Hand.Count} CARDS)", headerFont, goldBrush, handPanel.X + 12, handPanel.Y + 8);
-                g.DrawString("Click Ready Card to Equip (1 Turn)", new Font("Segoe UI", 8.2f, FontStyle.Regular), mutedBrush, handPanel.X + 170, handPanel.Y + 10);
+                g.DrawString("Click Ready Card to Equip (1 Turn)", hintFont, mutedBrush, handPanel.X + 170, handPanel.Y + 10);
             }
 
             int cardWidth = 144;

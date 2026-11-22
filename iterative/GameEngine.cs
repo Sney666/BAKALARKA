@@ -14,6 +14,7 @@ namespace RogueCards
         private readonly PlayerProfile profile;
         private readonly Random random;
         private readonly CardResolver cardResolver;
+        private readonly EnemyAI enemyAI;
 
         private int currentExecutingQueueIndex;
         private bool isExecutingQueue;
@@ -59,6 +60,7 @@ namespace RogueCards
             this.profile = profile;
             random = new Random();
             cardResolver = new CardResolver();
+            enemyAI = new EnemyAI(random);
             LastActionFeedback = string.Empty;
             LastSpecialEffectType = string.Empty;
         }
@@ -196,9 +198,11 @@ namespace RogueCards
 
             CurrentRun.IsStartingDraft = false;
             CurrentRun.PendingReward = null;
-            LastActionFeedback = $"Starting hand ready: {string.Join(" & ", chosenNames)}.";
+            CurrentRun.TookDamageInCurrentWave = false;
+            LastActionFeedback = $"Wave 1 begun! Starting hand: {string.Join(" & ", chosenNames)}.";
             AddCombatLog($"Drafted starting hand: {string.Join(", ", chosenNames)}.");
-            AddCombatLog("Wave 1 ready. Move, Equip cards, Drag to reorder, or Play Queue.");
+
+            enemyAI.SpawnWave(this, CurrentRun.CurrentWave);
             return true;
         }
 
@@ -339,6 +343,12 @@ namespace RogueCards
             LastActionFeedback = $"Executed {card.Definition.Name}!";
             currentExecutingQueueIndex++;
 
+            if (CurrentRun.IsGameOver || CurrentRun.Enemies.All(e => e.CurrentHp <= 0))
+            {
+                FinishEquippedQueueExecution();
+                return true;
+            }
+
             AdvanceQueueThroughAutoCards();
             return true;
         }
@@ -371,18 +381,18 @@ namespace RogueCards
         private void FinishEquippedQueueExecution()
         {
             PlayerState player = CurrentRun.Player;
-            int playedCount = player.EquippedQueue.Count;
+            int playedCount = currentExecutingQueueIndex;
 
-            foreach (CardInstance playedCard in player.EquippedQueue)
+            foreach (CardInstance queuedCard in player.EquippedQueue)
             {
-                player.Hand.Add(playedCard);
+                player.Hand.Add(queuedCard);
             }
 
             player.EquippedQueue.Clear();
             isExecutingQueue = false;
             currentExecutingQueueIndex = 0;
 
-            LastActionFeedback = $"Executed {playedCount} card(s). Turn ended.";
+            LastActionFeedback = $"Executed {playedCount} card(s).";
             EndPlayerTurn(false, false);
             cardsPlayedThisTurn.Clear();
         }
@@ -540,6 +550,7 @@ namespace RogueCards
             CurrentRun.PendingReward = null;
             LastActionFeedback = $"Added {weapon.Name} to your hand!";
             AddCombatLog($"Reward chosen: Added {weapon.Name} to hand.");
+            AdvanceToNextWave();
             return true;
         }
 
@@ -588,6 +599,7 @@ namespace RogueCards
             CurrentRun.PendingReward = null;
             LastActionFeedback = $"Upgraded {targetCard.Definition.Name}!";
             AddCombatLog($"Reward chosen: Applied {modifierType} to {targetCard.Definition.Name}.");
+            AdvanceToNextWave();
             return true;
         }
 
@@ -602,6 +614,7 @@ namespace RogueCards
             CurrentRun.PendingReward = null;
             LastActionFeedback = $"Skipped {skipped} reward.";
             AddCombatLog($"Skipped {skipped} reward.");
+            AdvanceToNextWave();
             return true;
         }
 
@@ -651,6 +664,45 @@ namespace RogueCards
             return true;
         }
 
+        private void AdvanceToNextWave()
+        {
+            CurrentRun.CurrentWave++;
+            CurrentRun.TookDamageInCurrentWave = false;
+            enemyAI.SpawnWave(this, CurrentRun.CurrentWave);
+        }
+
+        private void CheckWaveClearOrVictory()
+        {
+            if (CurrentRun == null || CurrentRun.IsGameOver || CurrentRun.PendingReward != null)
+            {
+                return;
+            }
+
+            if (CurrentRun.Enemies.Any(e => e.CurrentHp > 0))
+            {
+                return;
+            }
+
+            int maxWave = database.Waves.Count > 0 ? database.Waves.Max(w => w.WaveNumber) : 10;
+            if (CurrentRun.CurrentWave >= maxWave)
+            {
+                CurrentRun.IsVictory = true;
+                CurrentRun.IsGameOver = true;
+                CurrentRun.GameOverReason = "Victory! You defeated the Viking Chief and conquered Level 1!";
+                profile.Area2Unlocked = true;
+                LastActionFeedback = "VICTORY! Viking Chief defeated!";
+                AddCombatLog("VICTORY! Level 1 completed and Area 2 unlocked!");
+                return;
+            }
+
+            GameScreen rewardScreen = TriggerWaveClearReward(CurrentRun.CurrentWave);
+            if (rewardScreen == GameScreen.Arena)
+            {
+                AddCombatLog($"Wave {CurrentRun.CurrentWave} cleared!");
+                AdvanceToNextWave();
+            }
+        }
+
         public List<CardInstance> GetAllOwnedCards()
         {
             List<CardInstance> cards = new List<CardInstance>();
@@ -693,6 +745,53 @@ namespace RogueCards
             }
         }
 
+        public void ApplyFriendlyFireDamage(EnemyInstance attacker, EnemyInstance victim, int damage, string weaponLabel)
+        {
+            if (victim == null || victim.CurrentHp <= 0)
+            {
+                return;
+            }
+
+            victim.CurrentHp = Math.Max(0, victim.CurrentHp - damage);
+            AddCombatLog($"FRIENDLY FIRE! {attacker.Name}'s {weaponLabel} hit {victim.Name} for {damage} dmg ({victim.CurrentHp}/{victim.MaxHp} HP).");
+
+            if (victim.CurrentHp <= 0)
+            {
+                profile.Coins += victim.CoinDrop;
+                AddCombatLog($"{victim.Name} killed by friendly fire! (+{victim.CoinDrop} Coins)");
+                RemoveDefeatedEnemies();
+            }
+        }
+
+        public void ApplyEnemyAttackToPlayer(EnemyInstance attacker, int damage, string weaponLabel)
+        {
+            PlayerState player = CurrentRun.Player;
+            if (player.IsImmuneThisTurn)
+            {
+                AddCombatLog($"Iron Bulwark blocked {damage} dmg from {attacker.Name}'s {weaponLabel}!");
+                return;
+            }
+
+            player.CurrentHp = Math.Max(0, player.CurrentHp - damage);
+            CurrentRun.TookDamageInCurrentWave = true;
+            AddCombatLog($"{attacker.Name} hit you with {weaponLabel} for {damage} dmg ({player.CurrentHp}/{player.MaxHp} HP).");
+
+            if (player.CurrentHp <= 0)
+            {
+                TriggerPlayerDefeat($"Slain by {attacker.Name} ({weaponLabel}) on Wave {CurrentRun.CurrentWave}.");
+            }
+        }
+
+        private void TriggerPlayerDefeat(string reason)
+        {
+            CurrentRun.IsVictory = false;
+            CurrentRun.IsGameOver = true;
+            CurrentRun.GameOverReason = reason;
+            isExecutingQueue = false;
+            LastActionFeedback = "DEFEAT! You have fallen in battle.";
+            AddCombatLog($"DEFEAT: {reason}");
+        }
+
         public void TriggerHazardsForEnemy(EnemyInstance enemy)
         {
             if (enemy == null || enemy.CurrentHp <= 0)
@@ -708,6 +807,7 @@ namespace RogueCards
                 CurrentRun.Hazards.Remove(trap);
                 enemy.IsStunned = true;
                 enemy.State = EnemyState.Armed;
+                enemy.ChargeTurnsRemaining = 0;
                 enemy.LockedTargetTiles.Clear();
                 ApplyDamageToEnemy(enemy, trap.Damage, false, "Bear Trap");
                 if (enemy.CurrentHp > 0)
@@ -734,11 +834,22 @@ namespace RogueCards
             GroundHazard poison = CurrentRun.Hazards.FirstOrDefault(
                 h => h.Type == HazardType.Poison && h.Position == player.Position);
 
-            if (poison != null && !player.IsImmuneThisTurn)
+            if (poison != null)
             {
+                if (player.IsImmuneThisTurn)
+                {
+                    AddCombatLog("Iron Bulwark blocked Poison Pool damage!");
+                    return;
+                }
+
                 player.CurrentHp = Math.Max(0, player.CurrentHp - poison.Damage);
                 CurrentRun.TookDamageInCurrentWave = true;
-                AddCombatLog($"Stepped in Poison Pool for {poison.Damage} dmg ({player.CurrentHp}/{player.MaxHp} HP).");
+                AddCombatLog($"Poison Pool dealt {poison.Damage} dmg ({player.CurrentHp}/{player.MaxHp} HP).");
+
+                if (player.CurrentHp <= 0)
+                {
+                    TriggerPlayerDefeat($"Succumbed to Poison on Wave {CurrentRun.CurrentWave}.");
+                }
             }
         }
 
@@ -938,7 +1049,11 @@ namespace RogueCards
             AddCombatLog($"Turn {CurrentRun.TurnNumber}: {hero.Name} moved {directionLabel} to {target}.");
             TriggerHazardsForPlayer();
 
-            EndPlayerTurn(false, false);
+            if (!CurrentRun.IsGameOver)
+            {
+                EndPlayerTurn(false, false);
+            }
+
             return true;
         }
 
@@ -1114,8 +1229,18 @@ namespace RogueCards
 
             TickPoisonAndHazards();
 
+            if (!CurrentRun.IsGameOver && CurrentRun.Enemies.Any(e => e.CurrentHp > 0))
+            {
+                enemyAI.ExecuteEnemyTurns(this);
+            }
+
             player.IsImmuneThisTurn = false;
-            CurrentRun.TurnNumber++;
+
+            if (!CurrentRun.IsGameOver)
+            {
+                CurrentRun.TurnNumber++;
+                CheckWaveClearOrVictory();
+            }
         }
 
         private void TickPoisonAndHazards()

@@ -1,6 +1,4 @@
 ﻿#nullable disable
-using System;
-using System.Collections.Generic;
 
 namespace RogueCards
 {
@@ -95,180 +93,129 @@ namespace RogueCards
         SpecialDamage
     }
 
-    public struct GridPos : IEquatable<GridPos>
+    public readonly struct GridPos(int x, int y) : IEquatable<GridPos>
     {
-        public int X { get; set; }
-        public int Y { get; set; }
+        public int X { get; } = x;
+        public int Y { get; } = y;
 
-        public GridPos(int x, int y)
-        {
-            X = x;
-            Y = y;
-        }
+        public bool IsValid() => X >= 0 && X < GameEngine.GridSize && Y >= 0 && Y < GameEngine.GridSize;
 
-        public bool IsValid(int gridSize = 5)
-        {
-            return X >= 0 && X < gridSize && Y >= 0 && Y < gridSize;
-        }
+        public GridPos Offset(int dx, int dy) => new(X + dx, Y + dy);
 
-        public GridPos Offset(int dx, int dy)
-        {
-            return new GridPos(X + dx, Y + dy);
-        }
+        public int ManhattanDistance(GridPos other) => Math.Abs(X - other.X) + Math.Abs(Y - other.Y);
 
-        public int ManhattanDistance(GridPos other)
-        {
-            return Math.Abs(X - other.X) + Math.Abs(Y - other.Y);
-        }
+        public int ChebyshevDistance(GridPos other) => Math.Max(Math.Abs(X - other.X), Math.Abs(Y - other.Y));
 
-        public int ChebyshevDistance(GridPos other)
-        {
-            return Math.Max(Math.Abs(X - other.X), Math.Abs(Y - other.Y));
-        }
+        public bool Equals(GridPos other) => X == other.X && Y == other.Y;
 
-        public bool Equals(GridPos other)
-        {
-            return X == other.X && Y == other.Y;
-        }
+        public override bool Equals(object obj) => obj is GridPos other && Equals(other);
 
-        public override bool Equals(object obj)
-        {
-            if (obj is GridPos other)
-            {
-                return Equals(other);
-            }
+        public override int GetHashCode() => HashCode.Combine(X, Y);
 
-            return false;
-        }
+        public static bool operator ==(GridPos left, GridPos right) => left.Equals(right);
 
-        public override int GetHashCode()
-        {
-            return HashCode.Combine(X, Y);
-        }
+        public static bool operator !=(GridPos left, GridPos right) => !left.Equals(right);
 
-        public static bool operator ==(GridPos left, GridPos right)
-        {
-            return left.Equals(right);
-        }
-
-        public static bool operator !=(GridPos left, GridPos right)
-        {
-            return !left.Equals(right);
-        }
-
-        public override string ToString()
-        {
-            return $"({X},{Y})";
-        }
+        public override string ToString() => $"({X},{Y})";
     }
 
     public class WeaponDefinition
     {
-        public string Id { get; set; }
-        public string Name { get; set; }
-        public CardCategory Category { get; set; }
-        public int BaseDamage { get; set; }
-        public int BaseCooldown { get; set; }
-        public int Range { get; set; }
-        public TargetingType Targeting { get; set; }
-        public WeaponEffectType Effect { get; set; }
-        public string Description { get; set; }
-        public int UnlockCost { get; set; }
-        public int UnlockOrder { get; set; }
-        public bool UnlockedByDefault { get; set; }
+        public string Id { get; init; }
+        public string Name { get; init; }
+        public CardCategory Category { get; init; }
+        public int BaseDamage { get; init; }
+        public int BaseCooldown { get; init; }
+        public int Range { get; init; }
+        public TargetingType Targeting { get; init; }
+        public WeaponEffectType Effect { get; init; }
+        public string Description { get; init; }
+        public int UnlockCost { get; init; }
+        public int UnlockOrder { get; init; }
+        public bool UnlockedByDefault { get; init; }
     }
 
     public class EnemyDefinition
     {
-        public string Id { get; set; }
-        public EnemyType Type { get; set; }
-        public string Name { get; set; }
-        public int MaxHp { get; set; }
-        public int AttackDamage { get; set; }
-        public int AttackRange { get; set; }
-        public int CoinDrop { get; set; }
-        public bool SpawnNearEdge { get; set; }
-        public bool IsBoss { get; set; }
-        public string WeaponName { get; set; }
-        public string Description { get; set; }
+        public string Id { get; init; }
+        public EnemyType Type { get; init; }
+        public string Name { get; init; }
+        public int MaxHp { get; init; }
+        public int AttackDamage { get; init; }
+        public int AttackRange { get; init; }
+        public int CoinDrop { get; init; }
+        public bool SpawnNearEdge { get; init; }
+        public bool IsBoss { get; init; }
+        public string WeaponName { get; init; }
     }
 
     public class WaveSpawnEntry
     {
-        public EnemyType EnemyType { get; set; }
-        public int Count { get; set; }
+        public EnemyType EnemyType { get; init; }
+        public int Count { get; init; }
     }
 
     public class WaveDefinition
     {
-        public int WaveNumber { get; set; }
-        public List<WaveSpawnEntry> Spawns { get; set; } = new List<WaveSpawnEntry>();
-        public RewardType RewardAfterClear { get; set; }
+        public int WaveNumber { get; init; }
+        public List<WaveSpawnEntry> Spawns { get; init; } = [];
+        public RewardType RewardAfterClear { get; init; }
     }
 
     public class PermanentUpgradeDefinition
     {
-        public string Id { get; set; }
-        public string Name { get; set; }
-        public string Description { get; set; }
-        public int Cost { get; set; }
-        public int UnlockOrder { get; set; }
-        public PermanentUpgradeEffectType EffectType { get; set; }
-        public int EffectValue { get; set; }
+        public string Id { get; init; }
+        public string Name { get; init; }
+        public string Description { get; init; }
+        public int Cost { get; init; }
+        public int UnlockOrder { get; init; }
+        public PermanentUpgradeEffectType EffectType { get; init; }
+        public int EffectValue { get; init; }
     }
 
     public class CharacterDefinition
     {
-        public string Id { get; set; }
-        public string Name { get; set; }
-        public int BaseHp { get; set; }
-        public string SpecialName { get; set; }
-        public string SpecialDescription { get; set; }
-        public int SpecialCooldown { get; set; }
-        public bool UnlockedByDefault { get; set; }
-        public string UnlockAchievementId { get; set; }
+        public string Id { get; init; }
+        public string Name { get; init; }
+        public int BaseHp { get; init; }
+        public string SpecialName { get; init; }
+        public string SpecialDescription { get; init; }
+        public int SpecialCooldown { get; init; }
+        public bool UnlockedByDefault { get; init; }
+        public string UnlockAchievementId { get; init; }
     }
 
     public class AchievementDefinition
     {
-        public string Id { get; set; }
-        public string Title { get; set; }
-        public string Description { get; set; }
-        public int TargetValue { get; set; }
-        public int CoinReward { get; set; }
-        public string UnlockCharacterId { get; set; }
+        public string Id { get; init; }
+        public string Title { get; init; }
+        public string Description { get; init; }
+        public int TargetValue { get; init; }
+        public int CoinReward { get; init; }
+        public string UnlockCharacterId { get; init; }
     }
 
     public class CardInstance
     {
-        public int InstanceId { get; set; }
-        public string DefinitionId { get; set; }
-        public WeaponDefinition Definition { get; set; }
+        public int InstanceId { get; init; }
+        public string DefinitionId { get; init; }
+        public WeaponDefinition Definition { get; init; }
         public int CurrentCooldown { get; set; }
         public int BonusDamage { get; set; }
         public int CooldownModifier { get; set; }
         public bool HasPoison { get; set; }
-        public List<string> AppliedModifiers { get; set; } = new List<string>();
+        public List<string> AppliedModifiers { get; init; } = [];
 
-        public bool IsReady
-        {
-            get { return CurrentCooldown <= 0; }
-        }
+        public bool IsReady => CurrentCooldown <= 0;
 
         public int GetEffectiveDamage(int permanentCategoryBonus)
         {
-            if (Definition == null)
+            if (Definition == null || (Definition.BaseDamage == 0 && BonusDamage == 0))
             {
                 return 0;
             }
 
-            if (Definition.BaseDamage == 0 && BonusDamage == 0)
-            {
-                return 0;
-            }
-
-            int total = Definition.BaseDamage + BonusDamage + permanentCategoryBonus;
-            return Math.Max(0, total);
+            return Math.Max(0, Definition.BaseDamage + BonusDamage + permanentCategoryBonus);
         }
 
         public int GetEffectiveMaxCooldown(int permanentReduction)
@@ -278,8 +225,7 @@ namespace RogueCards
                 return 1;
             }
 
-            int total = Definition.BaseCooldown + CooldownModifier - permanentReduction;
-            return Math.Max(1, total);
+            return Math.Max(1, Definition.BaseCooldown + CooldownModifier - permanentReduction);
         }
     }
 
@@ -293,24 +239,25 @@ namespace RogueCards
         public int SpecialMaxCooldown { get; set; }
         public bool IsImmuneThisTurn { get; set; }
         public int FreeRerollsRemaining { get; set; }
-        public List<CardInstance> Hand { get; set; } = new List<CardInstance>();
-        public List<CardInstance> EquippedQueue { get; set; } = new List<CardInstance>();
+        public List<CardInstance> Hand { get; } = [];
+        public List<CardInstance> EquippedQueue { get; } = [];
     }
 
     public class EnemyInstance
     {
-        public int InstanceId { get; set; }
-        public EnemyType Type { get; set; }
-        public string DefinitionId { get; set; }
-        public string Name { get; set; }
+        public int InstanceId { get; init; }
+        public EnemyType Type { get; init; }
+        public string DefinitionId { get; init; }
+        public string Name { get; init; }
         public GridPos Position { get; set; }
         public int CurrentHp { get; set; }
-        public int MaxHp { get; set; }
-        public int CoinDrop { get; set; }
+        public int MaxHp { get; init; }
+        public int CoinDrop { get; init; }
+        public bool IsBoss { get; init; }
         public EnemyState State { get; set; }
         public string EquippedWeaponLabel { get; set; }
         public int ChargeTurnsRemaining { get; set; }
-        public List<GridPos> LockedTargetTiles { get; set; } = new List<GridPos>();
+        public List<GridPos> LockedTargetTiles { get; set; } = [];
         public GridPos LockedDirection { get; set; }
         public string LockedAttackType { get; set; }
         public bool IsStunned { get; set; }
@@ -321,38 +268,38 @@ namespace RogueCards
 
     public class GroundHazard
     {
-        public HazardType Type { get; set; }
-        public GridPos Position { get; set; }
+        public HazardType Type { get; init; }
+        public GridPos Position { get; init; }
         public int RemainingTurns { get; set; }
-        public int Damage { get; set; }
+        public int Damage { get; init; }
         public bool IsArmed { get; set; }
-        public bool AppliesStun { get; set; }
+        public bool AppliesStun { get; init; }
     }
 
     public class UpgradeOption
     {
-        public UpgradeModifierType ModifierType { get; set; }
-        public string Name { get; set; }
-        public string Description { get; set; }
+        public UpgradeModifierType ModifierType { get; init; }
+        public string Name { get; init; }
+        public string Description { get; init; }
     }
 
     public class PendingRewardState
     {
         public RewardType RewardType { get; set; }
-        public List<string> DraftCardIds { get; set; } = new List<string>();
-        public List<string> DraftSelectedIds { get; set; } = new List<string>();
-        public List<UpgradeOption> UpgradeOptions { get; set; } = new List<UpgradeOption>();
+        public List<string> DraftCardIds { get; set; } = [];
+        public List<string> DraftSelectedIds { get; set; } = [];
+        public List<UpgradeOption> UpgradeOptions { get; } = [];
         public int RerollCount { get; set; }
         public int NextRerollCost { get; set; }
     }
 
     public class ActiveRunState
     {
-        public PlayerState Player { get; set; } = new PlayerState();
+        public PlayerState Player { get; set; } = new();
         public int CurrentWave { get; set; }
         public int TurnNumber { get; set; }
-        public List<EnemyInstance> Enemies { get; set; } = new List<EnemyInstance>();
-        public List<GroundHazard> Hazards { get; set; } = new List<GroundHazard>();
+        public List<EnemyInstance> Enemies { get; } = [];
+        public List<GroundHazard> Hazards { get; } = [];
         public PendingRewardState PendingReward { get; set; }
         public bool IsStartingDraft { get; set; }
         public bool UsedRerollInRun { get; set; }
@@ -363,17 +310,17 @@ namespace RogueCards
         public int NextEnemyInstanceId { get; set; } = 1;
         public int NextCardInstanceId { get; set; } = 1;
         public string CombatLogFilePath { get; set; }
-        public List<string> RecentLogEntries { get; set; } = new List<string>();
+        public List<string> RecentLogEntries { get; } = [];
     }
 
     public class PlayerProfile
     {
         public int Coins { get; set; }
-        public HashSet<string> UnlockedWeaponIds { get; set; } = new HashSet<string>();
-        public HashSet<string> UnlockedUpgradeIds { get; set; } = new HashSet<string>();
-        public HashSet<string> UnlockedCharacterIds { get; set; } = new HashSet<string>();
-        public HashSet<string> CompletedAchievementIds { get; set; } = new HashSet<string>();
-        public Dictionary<string, int> AchievementProgress { get; set; } = new Dictionary<string, int>();
+        public HashSet<string> UnlockedWeaponIds { get; } = [];
+        public HashSet<string> UnlockedUpgradeIds { get; } = [];
+        public HashSet<string> UnlockedCharacterIds { get; } = [];
+        public HashSet<string> CompletedAchievementIds { get; } = [];
+        public Dictionary<string, int> AchievementProgress { get; } = [];
         public bool Area2Unlocked { get; set; }
         public string SelectedCharacterId { get; set; } = "viking";
     }
@@ -385,33 +332,33 @@ namespace RogueCards
         public int HighestWaveReached { get; set; }
         public int TotalTurnsTaken { get; set; }
         public int TotalEnemiesDefeated { get; set; }
-        public Dictionary<EnemyType, int> EnemiesDefeatedByType { get; set; } = new Dictionary<EnemyType, int>();
+        public Dictionary<EnemyType, int> EnemiesDefeatedByType { get; } = [];
         public int TotalFriendlyFireKills { get; set; }
         public int TotalDamageDealt { get; set; }
         public int TotalCoinsEarned { get; set; }
         public int TotalCardsPlayed { get; set; }
-        public Dictionary<string, int> WeaponUseCounts { get; set; } = new Dictionary<string, int>();
+        public Dictionary<string, int> WeaponUseCounts { get; } = [];
         public int BearTrapStunsTriggered { get; set; }
     }
 
     public class GameDatabase
     {
-        public Dictionary<string, WeaponDefinition> Weapons { get; set; } = new Dictionary<string, WeaponDefinition>();
-        public List<WeaponDefinition> WeaponList { get; set; } = new List<WeaponDefinition>();
-        public Dictionary<EnemyType, EnemyDefinition> Enemies { get; set; } = new Dictionary<EnemyType, EnemyDefinition>();
-        public List<WaveDefinition> Waves { get; set; } = new List<WaveDefinition>();
-        public Dictionary<string, PermanentUpgradeDefinition> Upgrades { get; set; } = new Dictionary<string, PermanentUpgradeDefinition>();
-        public List<PermanentUpgradeDefinition> UpgradeList { get; set; } = new List<PermanentUpgradeDefinition>();
-        public Dictionary<string, CharacterDefinition> Characters { get; set; } = new Dictionary<string, CharacterDefinition>();
-        public List<CharacterDefinition> CharacterList { get; set; } = new List<CharacterDefinition>();
-        public Dictionary<string, AchievementDefinition> Achievements { get; set; } = new Dictionary<string, AchievementDefinition>();
-        public List<AchievementDefinition> AchievementList { get; set; } = new List<AchievementDefinition>();
+        public Dictionary<string, WeaponDefinition> Weapons { get; } = [];
+        public List<WeaponDefinition> WeaponList { get; } = [];
+        public Dictionary<EnemyType, EnemyDefinition> Enemies { get; } = [];
+        public List<WaveDefinition> Waves { get; } = [];
+        public Dictionary<string, PermanentUpgradeDefinition> Upgrades { get; } = [];
+        public List<PermanentUpgradeDefinition> UpgradeList { get; } = [];
+        public Dictionary<string, CharacterDefinition> Characters { get; } = [];
+        public List<CharacterDefinition> CharacterList { get; } = [];
+        public Dictionary<string, AchievementDefinition> Achievements { get; } = [];
+        public List<AchievementDefinition> AchievementList { get; } = [];
     }
 
     public class AchievementToast
     {
-        public string Title { get; set; }
-        public string Subtitle { get; set; }
+        public string Title { get; init; }
+        public string Subtitle { get; init; }
         public float RemainingSeconds { get; set; }
     }
 }

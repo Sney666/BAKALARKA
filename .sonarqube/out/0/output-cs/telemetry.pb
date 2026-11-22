@@ -1,0 +1,1 @@
+NRAC:\school\3\bakalarska_prace\iterative\iterative\iterative.csprojòCSharp14

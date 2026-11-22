@@ -1,0 +1,1106 @@
+{
+  "$schema": "http://json.schemastore.org/sarif-1.0.0",
+  "version": "1.0.0",
+  "runs": [
+    {
+      "tool": {
+        "name": "Microsoft (R) Visual C# Compiler",
+        "version": "5.9.0.0",
+        "fileVersion": "5.9.0-1.26423.113 (e34a38d2ae1fc26406a317517196e55c68ff83ab)",
+        "semanticVersion": "5.9.0",
+        "language": "en-US"
+      },
+      "results": [
+        {
+          "ruleId": "S2245",
+          "level": "warning",
+          "message": "Use a cryptographically strong random number generator.",
+          "locations": [
+            {
+              "resultFile": {
+                "uri": "file:///C:/school/3/bakalarska_prace/iterative/iterative/GameEngine.cs",
+                "region": {
+                  "startLine": 69,
+                  "startColumn": 22,
+                  "endLine": 69,
+                  "endColumn": 34
+                }
+              }
+            }
+          ],
+          "properties": {
+            "warningLevel": 1
+          }
+        },
+        {
+          "ruleId": "CA1822",
+          "level": "note",
+          "message": "Member 'CreateDefaultProfile' does not access instance data and can be marked as static",
+          "locations": [
+            {
+              "resultFile": {
+                "uri": "file:///C:/school/3/bakalarska_prace/iterative/iterative/DataRepository.cs",
+                "region": {
+                  "startLine": 68,
+                  "startColumn": 30,
+                  "endLine": 68,
+                  "endColumn": 50
+                }
+              }
+            }
+          ],
+          "properties": {
+            "warningLevel": 1
+          }
+        },
+        {
+          "ruleId": "CA1866",
+          "level": "note",
+          "message": "Use 'string.StartsWith(char)' instead of 'string.StartsWith(string)' when you have a string with a single char",
+          "locations": [
+            {
+              "resultFile": {
+                "uri": "file:///C:/school/3/bakalarska_prace/iterative/iterative/DataRepository.cs",
+                "region": {
+                  "startLine": 262,
+                  "startColumn": 64,
+                  "endLine": 262,
+                  "endColumn": 69
+                }
+              }
+            }
+          ],
+          "properties": {
+            "warningLevel": 1
+          }
+        },
+        {
+          "ruleId": "CA1854",
+          "level": "note",
+          "message": "Prefer a 'TryGetValue' call over a Dictionary indexer access guarded by a 'ContainsKey' check to avoid double lookup",
+          "locations": [
+            {
+              "resultFile": {
+                "uri": "file:///C:/school/3/bakalarska_prace/iterative/iterative/AchievementManager.cs",
+                "region": {
+                  "startLine": 104,
+                  "startColumn": 22,
+                  "endLine": 104,
+                  "endColumn": 67
+                }
+              }
+            }
+          ],
+          "relatedLocations": [
+            {
+              "physicalLocation": {
+                "uri": "file:///C:/school/3/bakalarska_prace/iterative/iterative/AchievementManager.cs",
+                "region": {
+                  "startLine": 109,
+                  "startColumn": 17,
+                  "endLine": 109,
+                  "endColumn": 50
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "uri": "file:///C:/school/3/bakalarska_prace/iterative/iterative/AchievementManager.cs",
+                "region": {
+                  "startLine": 106,
+                  "startColumn": 21,
+                  "endLine": 106,
+                  "endColumn": 59
+                }
+              }
+            }
+          ],
+          "properties": {
+            "warningLevel": 1
+          }
+        },
+        {
+          "ruleId": "CA1854",
+          "level": "note",
+          "message": "Prefer a 'TryGetValue' call over a Dictionary indexer access guarded by a 'ContainsKey' check to avoid double lookup",
+          "locations": [
+            {
+              "resultFile": {
+                "uri": "file:///C:/school/3/bakalarska_prace/iterative/iterative/AchievementManager.cs",
+                "region": {
+                  "startLine": 136,
+                  "startColumn": 18,
+                  "endLine": 136,
+                  "endColumn": 68
+                }
+              }
+            }
+          ],
+          "relatedLocations": [
+            {
+              "physicalLocation": {
+                "uri": "file:///C:/school/3/bakalarska_prace/iterative/iterative/AchievementManager.cs",
+                "region": {
+                  "startLine": 141,
+                  "startColumn": 13,
+                  "endLine": 141,
+                  "endColumn": 51
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "uri": "file:///C:/school/3/bakalarska_prace/iterative/iterative/AchievementManager.cs",
+                "region": {
+                  "startLine": 138,
+                  "startColumn": 17,
+                  "endLine": 138,
+                  "endColumn": 60
+                }
+              }
+            }
+          ],
+          "properties": {
+            "warningLevel": 1
+          }
+        },
+        {
+          "ruleId": "CA1868",
+          "level": "note",
+          "message": "Do not guard 'List.Remove(string)' with 'List.Contains(string)'",
+          "locations": [
+            {
+              "resultFile": {
+                "uri": "file:///C:/school/3/bakalarska_prace/iterative/iterative/GameEngine.cs",
+                "region": {
+                  "startLine": 195,
+                  "startColumn": 17,
+                  "endLine": 195,
+                  "endColumn": 58
+                }
+              }
+            }
+          ],
+          "relatedLocations": [
+            {
+              "physicalLocation": {
+                "uri": "file:///C:/school/3/bakalarska_prace/iterative/iterative/GameEngine.cs",
+                "region": {
+                  "startLine": 195,
+                  "startColumn": 13,
+                  "endLine": 199,
+                  "endColumn": 14
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "uri": "file:///C:/school/3/bakalarska_prace/iterative/iterative/GameEngine.cs",
+                "region": {
+                  "startLine": 197,
+                  "startColumn": 17,
+                  "endLine": 197,
+                  "endColumn": 57
+                }
+              }
+            }
+          ],
+          "properties": {
+            "warningLevel": 1
+          }
+        },
+        {
+          "ruleId": "CA1866",
+          "level": "note",
+          "message": "Use 'string.StartsWith(char)' instead of 'string.StartsWith(string)' when you have a string with a single char",
+          "locations": [
+            {
+              "resultFile": {
+                "uri": "file:///C:/school/3/bakalarska_prace/iterative/iterative/DataRepository.cs",
+                "region": {
+                  "startLine": 386,
+                  "startColumn": 64,
+                  "endLine": 386,
+                  "endColumn": 69
+                }
+              }
+            }
+          ],
+          "properties": {
+            "warningLevel": 1
+          }
+        },
+        {
+          "ruleId": "CA2263",
+          "level": "note",
+          "message": "Prefer the generic overload 'System.Enum.GetValues<TEnum>()' instead of 'System.Enum.GetValues(System.Type)'",
+          "locations": [
+            {
+              "resultFile": {
+                "uri": "file:///C:/school/3/bakalarska_prace/iterative/iterative/AchievementManager.cs",
+                "region": {
+                  "startLine": 299,
+                  "startColumn": 45,
+                  "endLine": 299,
+                  "endColumn": 78
+                }
+              }
+            }
+          ],
+          "properties": {
+            "warningLevel": 1
+          }
+        },
+        {
+          "ruleId": "CA1822",
+          "level": "note",
+          "message": "Member 'AppendCombatLogLine' does not access instance data and can be marked as static",
+          "locations": [
+            {
+              "resultFile": {
+                "uri": "file:///C:/school/3/bakalarska_prace/iterative/iterative/PersistenceManager.cs",
+                "region": {
+                  "startLine": 46,
+                  "startColumn": 21,
+                  "endLine": 46,
+                  "endColumn": 40
+                }
+              }
+            }
+          ],
+          "properties": {
+            "warningLevel": 1
+          }
+        },
+        {
+          "ruleId": "CA1866",
+          "level": "note",
+          "message": "Use 'string.StartsWith(char)' instead of 'string.StartsWith(string)' when you have a string with a single char",
+          "locations": [
+            {
+              "resultFile": {
+                "uri": "file:///C:/school/3/bakalarska_prace/iterative/iterative/AchievementManager.cs",
+                "region": {
+                  "startLine": 325,
+                  "startColumn": 70,
+                  "endLine": 325,
+                  "endColumn": 75
+                }
+              }
+            }
+          ],
+          "properties": {
+            "warningLevel": 1
+          }
+        },
+        {
+          "ruleId": "CA1866",
+          "level": "note",
+          "message": "Use 'string.StartsWith(char)' instead of 'string.StartsWith(string)' when you have a string with a single char",
+          "locations": [
+            {
+              "resultFile": {
+                "uri": "file:///C:/school/3/bakalarska_prace/iterative/iterative/DataRepository.cs",
+                "region": {
+                  "startLine": 487,
+                  "startColumn": 64,
+                  "endLine": 487,
+                  "endColumn": 69
+                }
+              }
+            }
+          ],
+          "properties": {
+            "warningLevel": 1
+          }
+        },
+        {
+          "ruleId": "CA1866",
+          "level": "note",
+          "message": "Use 'string.StartsWith(char)' instead of 'string.StartsWith(string)' when you have a string with a single char",
+          "locations": [
+            {
+              "resultFile": {
+                "uri": "file:///C:/school/3/bakalarska_prace/iterative/iterative/DataRepository.cs",
+                "region": {
+                  "startLine": 579,
+                  "startColumn": 64,
+                  "endLine": 579,
+                  "endColumn": 69
+                }
+              }
+            }
+          ],
+          "properties": {
+            "warningLevel": 1
+          }
+        },
+        {
+          "ruleId": "CA1822",
+          "level": "note",
+          "message": "Member 'ResolveSingleAdjacent' does not access instance data and can be marked as static",
+          "locations": [
+            {
+              "resultFile": {
+                "uri": "file:///C:/school/3/bakalarska_prace/iterative/iterative/CardResolver.cs",
+                "region": {
+                  "startLine": 216,
+                  "startColumn": 22,
+                  "endLine": 216,
+                  "endColumn": 43
+                }
+              }
+            }
+          ],
+          "properties": {
+            "warningLevel": 1
+          }
+        },
+        {
+          "ruleId": "CA1822",
+          "level": "note",
+          "message": "Member 'ResolveKnockbackAdjacent' does not access instance data and can be marked as static",
+          "locations": [
+            {
+              "resultFile": {
+                "uri": "file:///C:/school/3/bakalarska_prace/iterative/iterative/CardResolver.cs",
+                "region": {
+                  "startLine": 236,
+                  "startColumn": 22,
+                  "endLine": 236,
+                  "endColumn": 46
+                }
+              }
+            }
+          ],
+          "properties": {
+            "warningLevel": 1
+          }
+        },
+        {
+          "ruleId": "CA1822",
+          "level": "note",
+          "message": "Member 'ResolveArcSweep' does not access instance data and can be marked as static",
+          "locations": [
+            {
+              "resultFile": {
+                "uri": "file:///C:/school/3/bakalarska_prace/iterative/iterative/CardResolver.cs",
+                "region": {
+                  "startLine": 268,
+                  "startColumn": 22,
+                  "endLine": 268,
+                  "endColumn": 37
+                }
+              }
+            }
+          ],
+          "properties": {
+            "warningLevel": 1
+          }
+        },
+        {
+          "ruleId": "CA1822",
+          "level": "note",
+          "message": "Member 'ResolveLineProjectile' does not access instance data and can be marked as static",
+          "locations": [
+            {
+              "resultFile": {
+                "uri": "file:///C:/school/3/bakalarska_prace/iterative/iterative/CardResolver.cs",
+                "region": {
+                  "startLine": 299,
+                  "startColumn": 22,
+                  "endLine": 299,
+                  "endColumn": 43
+                }
+              }
+            }
+          ],
+          "properties": {
+            "warningLevel": 1
+          }
+        },
+        {
+          "ruleId": "CA1822",
+          "level": "note",
+          "message": "Member 'ResolvePlaceBearTrap' does not access instance data and can be marked as static",
+          "locations": [
+            {
+              "resultFile": {
+                "uri": "file:///C:/school/3/bakalarska_prace/iterative/iterative/CardResolver.cs",
+                "region": {
+                  "startLine": 336,
+                  "startColumn": 22,
+                  "endLine": 336,
+                  "endColumn": 42
+                }
+              }
+            }
+          ],
+          "properties": {
+            "warningLevel": 1
+          }
+        },
+        {
+          "ruleId": "CA1822",
+          "level": "note",
+          "message": "Member 'ResolveDiagonalDash' does not access instance data and can be marked as static",
+          "locations": [
+            {
+              "resultFile": {
+                "uri": "file:///C:/school/3/bakalarska_prace/iterative/iterative/CardResolver.cs",
+                "region": {
+                  "startLine": 412,
+                  "startColumn": 22,
+                  "endLine": 412,
+                  "endColumn": 41
+                }
+              }
+            }
+          ],
+          "properties": {
+            "warningLevel": 1
+          }
+        },
+        {
+          "ruleId": "CA1822",
+          "level": "note",
+          "message": "Member 'ResolveHarpoonPull' does not access instance data and can be marked as static",
+          "locations": [
+            {
+              "resultFile": {
+                "uri": "file:///C:/school/3/bakalarska_prace/iterative/iterative/CardResolver.cs",
+                "region": {
+                  "startLine": 358,
+                  "startColumn": 22,
+                  "endLine": 358,
+                  "endColumn": 40
+                }
+              }
+            }
+          ],
+          "properties": {
+            "warningLevel": 1
+          }
+        },
+        {
+          "ruleId": "CA1822",
+          "level": "note",
+          "message": "Member 'ResolveSlideTwo' does not access instance data and can be marked as static",
+          "locations": [
+            {
+              "resultFile": {
+                "uri": "file:///C:/school/3/bakalarska_prace/iterative/iterative/CardResolver.cs",
+                "region": {
+                  "startLine": 433,
+                  "startColumn": 22,
+                  "endLine": 433,
+                  "endColumn": 37
+                }
+              }
+            }
+          ],
+          "properties": {
+            "warningLevel": 1
+          }
+        },
+        {
+          "ruleId": "CA1822",
+          "level": "note",
+          "message": "Member 'TraceLinePreview' does not access instance data and can be marked as static",
+          "locations": [
+            {
+              "resultFile": {
+                "uri": "file:///C:/school/3/bakalarska_prace/iterative/iterative/CardResolver.cs",
+                "region": {
+                  "startLine": 465,
+                  "startColumn": 22,
+                  "endLine": 465,
+                  "endColumn": 38
+                }
+              }
+            }
+          ],
+          "properties": {
+            "warningLevel": 1
+          }
+        },
+        {
+          "ruleId": "CA1822",
+          "level": "note",
+          "message": "Member 'ComputeDiagonalDashPreview' does not access instance data and can be marked as static",
+          "locations": [
+            {
+              "resultFile": {
+                "uri": "file:///C:/school/3/bakalarska_prace/iterative/iterative/CardResolver.cs",
+                "region": {
+                  "startLine": 497,
+                  "startColumn": 22,
+                  "endLine": 497,
+                  "endColumn": 48
+                }
+              }
+            }
+          ],
+          "properties": {
+            "warningLevel": 1
+          }
+        },
+        {
+          "ruleId": "CA1822",
+          "level": "note",
+          "message": "Member 'ComputeSlidePreview' does not access instance data and can be marked as static",
+          "locations": [
+            {
+              "resultFile": {
+                "uri": "file:///C:/school/3/bakalarska_prace/iterative/iterative/CardResolver.cs",
+                "region": {
+                  "startLine": 511,
+                  "startColumn": 22,
+                  "endLine": 511,
+                  "endColumn": 41
+                }
+              }
+            }
+          ],
+          "properties": {
+            "warningLevel": 1
+          }
+        },
+        {
+          "ruleId": "CA1822",
+          "level": "note",
+          "message": "Member 'AddTileIfValid' does not access instance data and can be marked as static",
+          "locations": [
+            {
+              "resultFile": {
+                "uri": "file:///C:/school/3/bakalarska_prace/iterative/iterative/CardResolver.cs",
+                "region": {
+                  "startLine": 537,
+                  "startColumn": 22,
+                  "endLine": 537,
+                  "endColumn": 36
+                }
+              }
+            }
+          ],
+          "properties": {
+            "warningLevel": 1
+          }
+        },
+        {
+          "ruleId": "CA1866",
+          "level": "note",
+          "message": "Use 'string.StartsWith(char)' instead of 'string.StartsWith(string)' when you have a string with a single char",
+          "locations": [
+            {
+              "resultFile": {
+                "uri": "file:///C:/school/3/bakalarska_prace/iterative/iterative/DataRepository.cs",
+                "region": {
+                  "startLine": 667,
+                  "startColumn": 64,
+                  "endLine": 667,
+                  "endColumn": 69
+                }
+              }
+            }
+          ],
+          "properties": {
+            "warningLevel": 1
+          }
+        },
+        {
+          "ruleId": "CA1866",
+          "level": "note",
+          "message": "Use 'string.StartsWith(char)' instead of 'string.StartsWith(string)' when you have a string with a single char",
+          "locations": [
+            {
+              "resultFile": {
+                "uri": "file:///C:/school/3/bakalarska_prace/iterative/iterative/PersistenceManager.cs",
+                "region": {
+                  "startLine": 86,
+                  "startColumn": 70,
+                  "endLine": 86,
+                  "endColumn": 75
+                }
+              }
+            }
+          ],
+          "properties": {
+            "warningLevel": 1
+          }
+        },
+        {
+          "ruleId": "CA1866",
+          "level": "note",
+          "message": "Use 'string.StartsWith(char)' instead of 'string.StartsWith(string)' when you have a string with a single char",
+          "locations": [
+            {
+              "resultFile": {
+                "uri": "file:///C:/school/3/bakalarska_prace/iterative/iterative/DataRepository.cs",
+                "region": {
+                  "startLine": 746,
+                  "startColumn": 64,
+                  "endLine": 746,
+                  "endColumn": 69
+                }
+              }
+            }
+          ],
+          "properties": {
+            "warningLevel": 1
+          }
+        },
+        {
+          "ruleId": "CA1822",
+          "level": "note",
+          "message": "Member 'DrawStatPill' does not access instance data and can be marked as static",
+          "locations": [
+            {
+              "resultFile": {
+                "uri": "file:///C:/school/3/bakalarska_prace/iterative/iterative/MenuRenderer.cs",
+                "region": {
+                  "startLine": 713,
+                  "startColumn": 22,
+                  "endLine": 713,
+                  "endColumn": 34
+                }
+              }
+            }
+          ],
+          "properties": {
+            "warningLevel": 1
+          }
+        },
+        {
+          "ruleId": "CA1822",
+          "level": "note",
+          "message": "Member 'EquipEnemyWeapon' does not access instance data and can be marked as static",
+          "locations": [
+            {
+              "resultFile": {
+                "uri": "file:///C:/school/3/bakalarska_prace/iterative/iterative/EnemyAI.cs",
+                "region": {
+                  "startLine": 166,
+                  "startColumn": 22,
+                  "endLine": 166,
+                  "endColumn": 38
+                }
+              }
+            }
+          ],
+          "properties": {
+            "warningLevel": 1
+          }
+        },
+        {
+          "ruleId": "CA1822",
+          "level": "note",
+          "message": "Member 'HitTileWithEnemyAttack' does not access instance data and can be marked as static",
+          "locations": [
+            {
+              "resultFile": {
+                "uri": "file:///C:/school/3/bakalarska_prace/iterative/iterative/EnemyAI.cs",
+                "region": {
+                  "startLine": 429,
+                  "startColumn": 22,
+                  "endLine": 429,
+                  "endColumn": 44
+                }
+              }
+            }
+          ],
+          "properties": {
+            "warningLevel": 1
+          }
+        },
+        {
+          "ruleId": "CA1822",
+          "level": "note",
+          "message": "Member 'ChargeArcherShot' does not access instance data and can be marked as static",
+          "locations": [
+            {
+              "resultFile": {
+                "uri": "file:///C:/school/3/bakalarska_prace/iterative/iterative/EnemyAI.cs",
+                "region": {
+                  "startLine": 499,
+                  "startColumn": 22,
+                  "endLine": 499,
+                  "endColumn": 38
+                }
+              }
+            }
+          ],
+          "properties": {
+            "warningLevel": 1
+          }
+        },
+        {
+          "ruleId": "CA1822",
+          "level": "note",
+          "message": "Member 'ResolveBossHookAndClub' does not access instance data and can be marked as static",
+          "locations": [
+            {
+              "resultFile": {
+                "uri": "file:///C:/school/3/bakalarska_prace/iterative/iterative/EnemyAI.cs",
+                "region": {
+                  "startLine": 337,
+                  "startColumn": 22,
+                  "endLine": 337,
+                  "endColumn": 44
+                }
+              }
+            }
+          ],
+          "properties": {
+            "warningLevel": 1
+          }
+        },
+        {
+          "ruleId": "CA1822",
+          "level": "note",
+          "message": "Member 'ChargeShamanPoison' does not access instance data and can be marked as static",
+          "locations": [
+            {
+              "resultFile": {
+                "uri": "file:///C:/school/3/bakalarska_prace/iterative/iterative/EnemyAI.cs",
+                "region": {
+                  "startLine": 560,
+                  "startColumn": 22,
+                  "endLine": 560,
+                  "endColumn": 40
+                }
+              }
+            }
+          ],
+          "properties": {
+            "warningLevel": 1
+          }
+        },
+        {
+          "ruleId": "CA1822",
+          "level": "note",
+          "message": "Member 'MoveEnemyToTile' does not access instance data and can be marked as static",
+          "locations": [
+            {
+              "resultFile": {
+                "uri": "file:///C:/school/3/bakalarska_prace/iterative/iterative/EnemyAI.cs",
+                "region": {
+                  "startLine": 751,
+                  "startColumn": 22,
+                  "endLine": 751,
+                  "endColumn": 37
+                }
+              }
+            }
+          ],
+          "properties": {
+            "warningLevel": 1
+          }
+        },
+        {
+          "ruleId": "CA1866",
+          "level": "note",
+          "message": "Use 'string.StartsWith(char)' instead of 'string.StartsWith(string)' when you have a string with a single char",
+          "locations": [
+            {
+              "resultFile": {
+                "uri": "file:///C:/school/3/bakalarska_prace/iterative/iterative/PersistenceManager.cs",
+                "region": {
+                  "startLine": 302,
+                  "startColumn": 70,
+                  "endLine": 302,
+                  "endColumn": 75
+                }
+              }
+            }
+          ],
+          "properties": {
+            "warningLevel": 1
+          }
+        },
+        {
+          "ruleId": "CA1866",
+          "level": "note",
+          "message": "Use 'string.StartsWith(char)' instead of 'string.StartsWith(string)' when you have a string with a single char",
+          "locations": [
+            {
+              "resultFile": {
+                "uri": "file:///C:/school/3/bakalarska_prace/iterative/iterative/PersistenceManager.cs",
+                "region": {
+                  "startLine": 307,
+                  "startColumn": 40,
+                  "endLine": 307,
+                  "endColumn": 45
+                }
+              }
+            }
+          ],
+          "properties": {
+            "warningLevel": 1
+          }
+        },
+        {
+          "ruleId": "CA1866",
+          "level": "note",
+          "message": "Use 'string.EndsWith(char)' instead of 'string.EndsWith(string)' when you have a string with a single char",
+          "locations": [
+            {
+              "resultFile": {
+                "uri": "file:///C:/school/3/bakalarska_prace/iterative/iterative/PersistenceManager.cs",
+                "region": {
+                  "startLine": 307,
+                  "startColumn": 62,
+                  "endLine": 307,
+                  "endColumn": 67
+                }
+              }
+            }
+          ],
+          "properties": {
+            "warningLevel": 1
+          }
+        },
+        {
+          "ruleId": "CA1822",
+          "level": "note",
+          "message": "Member 'DrawEnemyTelegraphs' does not access instance data and can be marked as static",
+          "locations": [
+            {
+              "resultFile": {
+                "uri": "file:///C:/school/3/bakalarska_prace/iterative/iterative/ArenaRenderer.cs",
+                "region": {
+                  "startLine": 1177,
+                  "startColumn": 22,
+                  "endLine": 1177,
+                  "endColumn": 41
+                }
+              }
+            }
+          ],
+          "properties": {
+            "warningLevel": 1
+          }
+        },
+        {
+          "ruleId": "CA1822",
+          "level": "note",
+          "message": "Member 'DrawHazardsOnGrid' does not access instance data and can be marked as static",
+          "locations": [
+            {
+              "resultFile": {
+                "uri": "file:///C:/school/3/bakalarska_prace/iterative/iterative/ArenaRenderer.cs",
+                "region": {
+                  "startLine": 1406,
+                  "startColumn": 22,
+                  "endLine": 1406,
+                  "endColumn": 39
+                }
+              }
+            }
+          ],
+          "properties": {
+            "warningLevel": 1
+          }
+        },
+        {
+          "ruleId": "CA1822",
+          "level": "note",
+          "message": "Member 'DrawMoveDirectionHint' does not access instance data and can be marked as static",
+          "locations": [
+            {
+              "resultFile": {
+                "uri": "file:///C:/school/3/bakalarska_prace/iterative/iterative/ArenaRenderer.cs",
+                "region": {
+                  "startLine": 1492,
+                  "startColumn": 22,
+                  "endLine": 1492,
+                  "endColumn": 43
+                }
+              }
+            }
+          ],
+          "properties": {
+            "warningLevel": 1
+          }
+        },
+        {
+          "ruleId": "CA1822",
+          "level": "note",
+          "message": "Member 'DrawSpecialAbilityEffect' does not access instance data and can be marked as static",
+          "locations": [
+            {
+              "resultFile": {
+                "uri": "file:///C:/school/3/bakalarska_prace/iterative/iterative/ArenaRenderer.cs",
+                "region": {
+                  "startLine": 1534,
+                  "startColumn": 22,
+                  "endLine": 1534,
+                  "endColumn": 46
+                }
+              }
+            }
+          ],
+          "properties": {
+            "warningLevel": 1
+          }
+        },
+        {
+          "ruleId": "CA1822",
+          "level": "note",
+          "message": "Member 'DrawLegendRow' does not access instance data and can be marked as static",
+          "locations": [
+            {
+              "resultFile": {
+                "uri": "file:///C:/school/3/bakalarska_prace/iterative/iterative/ArenaRenderer.cs",
+                "region": {
+                  "startLine": 2169,
+                  "startColumn": 22,
+                  "endLine": 2169,
+                  "endColumn": 35
+                }
+              }
+            }
+          ],
+          "properties": {
+            "warningLevel": 1
+          }
+        },
+        {
+          "ruleId": "CA1822",
+          "level": "note",
+          "message": "Member 'DrawStatPill' does not access instance data and can be marked as static",
+          "locations": [
+            {
+              "resultFile": {
+                "uri": "file:///C:/school/3/bakalarska_prace/iterative/iterative/ArenaRenderer.cs",
+                "region": {
+                  "startLine": 2176,
+                  "startColumn": 22,
+                  "endLine": 2176,
+                  "endColumn": 34
+                }
+              }
+            }
+          ],
+          "properties": {
+            "warningLevel": 1
+          }
+        },
+        {
+          "ruleId": "CA1822",
+          "level": "note",
+          "message": "Member 'BuildUpgradeSummaryLines' does not access instance data and can be marked as static",
+          "locations": [
+            {
+              "resultFile": {
+                "uri": "file:///C:/school/3/bakalarska_prace/iterative/iterative/ArenaRenderer.cs",
+                "region": {
+                  "startLine": 2128,
+                  "startColumn": 30,
+                  "endLine": 2128,
+                  "endColumn": 54
+                }
+              }
+            }
+          ],
+          "properties": {
+            "warningLevel": 1
+          }
+        }
+      ],
+      "rules": {
+        "CA1822": {
+          "id": "CA1822",
+          "shortDescription": "Mark members as static",
+          "fullDescription": "Members that do not access instance data or call instance methods can be marked as static. After you mark the methods as static, the compiler will emit nonvirtual call sites to these members. This can give you a measurable performance gain for performance-sensitive code.",
+          "defaultLevel": "note",
+          "helpUri": "https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1822",
+          "properties": {
+            "category": "Performance",
+            "isEnabledByDefault": true,
+            "tags": [
+              "PortedFromFxCop",
+              "Telemetry",
+              "EnabledRuleInAggressiveMode"
+            ]
+          }
+        },
+        "CA1854": {
+          "id": "CA1854",
+          "shortDescription": "Prefer the 'IDictionary.TryGetValue(TKey, out TValue)' method",
+          "fullDescription": "Prefer a 'TryGetValue' call over a Dictionary indexer access guarded by a 'ContainsKey' check. 'ContainsKey' and the indexer both would lookup the key under the hood, so using 'TryGetValue' removes the extra lookup.",
+          "defaultLevel": "note",
+          "helpUri": "https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1854",
+          "properties": {
+            "category": "Performance",
+            "isEnabledByDefault": true,
+            "tags": [
+              "Telemetry",
+              "EnabledRuleInAggressiveMode"
+            ]
+          }
+        },
+        "CA1866": {
+          "id": "CA1866",
+          "shortDescription": "Use char overload",
+          "fullDescription": "The char overload is a better performing overload than a string with a single char.",
+          "defaultLevel": "note",
+          "helpUri": "https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1866",
+          "properties": {
+            "category": "Performance",
+            "isEnabledByDefault": true,
+            "tags": [
+              "Telemetry",
+              "EnabledRuleInAggressiveMode"
+            ]
+          }
+        },
+        "CA1868": {
+          "id": "CA1868",
+          "shortDescription": "Unnecessary call to 'Contains(item)'",
+          "fullDescription": "Do not guard 'Add(item)' or 'Remove(item)' with 'Contains(item)' for the set. The former two already check whether the item exists and will return if it was added or removed.",
+          "defaultLevel": "note",
+          "helpUri": "https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1868",
+          "properties": {
+            "category": "Performance",
+            "isEnabledByDefault": true,
+            "tags": [
+              "Telemetry",
+              "EnabledRuleInAggressiveMode"
+            ]
+          }
+        },
+        "CA2263": {
+          "id": "CA2263",
+          "shortDescription": "Prefer generic overload when type is known",
+          "fullDescription": "Using a generic overload is preferable to the 'System.Type' overload when the type is known, promoting cleaner and more type-safe code with improved compile-time checks.",
+          "defaultLevel": "note",
+          "helpUri": "https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca2263",
+          "properties": {
+            "category": "Usage",
+            "isEnabledByDefault": true,
+            "tags": [
+              "Telemetry",
+              "EnabledRuleInAggressiveMode"
+            ]
+          }
+        },
+        "S2245": {
+          "id": "S2245",
+          "shortDescription": "Pseudorandom number generators (PRNGs) should not be used in security contexts",
+          "fullDescription": "Pseudorandom number generators (PRNGs) produce sequences that only approximate true randomness and are not suitable for security-sensitive contexts.",
+          "defaultLevel": "warning",
+          "properties": {
+            "category": "Major Vulnerability",
+            "isEnabledByDefault": true,
+            "tags": [
+              "C#",
+              "MainSourceScope",
+              "SonarWay"
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

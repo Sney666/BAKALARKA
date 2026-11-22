@@ -1,49 +1,36 @@
 ﻿#nullable disable
-using System;
-using System.Collections.Generic;
+using System.Diagnostics;
 using System.Globalization;
-using System.IO;
-using System.Linq;
 
 namespace RogueCards
 {
-    public class PersistenceManager
+    public class PersistenceManager(DataRepository dataRepository)
     {
         private const int SaveFormatVersion = 1;
 
-        private readonly DataRepository dataRepository;
-        public string ProfileFilePath { get; }
-        public string ActiveRunFilePath { get; }
-        public string LogsDirectory { get; }
+        private readonly string _savesDirectory = dataRepository.SavesDirectory;
+        private readonly string _profileFilePath = Path.Combine(dataRepository.SavesDirectory, "profile.txt");
+        private readonly string _activeRunFilePath = dataRepository.ActiveRunFilePath;
+        private readonly string _logsDirectory = dataRepository.LogsDirectory;
 
-        public PersistenceManager(DataRepository dataRepository)
-        {
-            this.dataRepository = dataRepository;
-            ProfileFilePath = Path.Combine(dataRepository.SavesDirectory, "profile.txt");
-            ActiveRunFilePath = dataRepository.ActiveRunFilePath;
-            LogsDirectory = dataRepository.LogsDirectory;
-        }
-
-        public bool HasActiveRunSave()
-        {
-            return File.Exists(ActiveRunFilePath);
-        }
+        public bool HasActiveRunSave() => File.Exists(_activeRunFilePath);
 
         public string CreateNewCombatLogPath()
         {
             try
             {
-                Directory.CreateDirectory(LogsDirectory);
+                Directory.CreateDirectory(_logsDirectory);
             }
-            catch
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
+                Debug.WriteLine($"Failed to create logs directory: {ex.Message}");
             }
 
             string stamp = DateTime.Now.ToString("yyyyMMdd_HHmmss", CultureInfo.InvariantCulture);
-            return Path.Combine(LogsDirectory, $"combat_log_{stamp}.txt");
+            return Path.Combine(_logsDirectory, $"combat_log_{stamp}.txt");
         }
 
-        public void AppendCombatLogLine(string logFilePath, string entry)
+        public static void AppendCombatLogLine(string logFilePath, string entry)
         {
             if (string.IsNullOrWhiteSpace(logFilePath) || string.IsNullOrWhiteSpace(entry))
             {
@@ -61,17 +48,18 @@ namespace RogueCards
                 string timeStamp = DateTime.Now.ToString("HH:mm:ss", CultureInfo.InvariantCulture);
                 File.AppendAllText(logFilePath, $"[{timeStamp}] {entry}{Environment.NewLine}");
             }
-            catch
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
+                Debug.WriteLine($"Failed to append combat log: {ex.Message}");
             }
         }
 
         public PlayerProfile LoadProfile(GameDatabase database, out string warningMessage)
         {
             warningMessage = string.Empty;
-            PlayerProfile profile = dataRepository.CreateDefaultProfile(database);
+            PlayerProfile profile = DataRepository.CreateDefaultProfile(database);
 
-            if (!File.Exists(ProfileFilePath))
+            if (!File.Exists(_profileFilePath))
             {
                 SaveProfile(profile);
                 return profile;
@@ -79,56 +67,15 @@ namespace RogueCards
 
             try
             {
-                string[] lines = File.ReadAllLines(ProfileFilePath);
-                foreach (string raw in lines)
+                foreach (string raw in File.ReadAllLines(_profileFilePath))
                 {
                     string line = raw.Trim();
-                    if (string.IsNullOrEmpty(line) || line.StartsWith("#"))
+                    if (string.IsNullOrEmpty(line) || line.StartsWith('#') || !TrySplitKeyValue(line, out string key, out string value))
                     {
                         continue;
                     }
 
-                    int sepIndex = line.IndexOf('=');
-                    if (sepIndex <= 0)
-                    {
-                        continue;
-                    }
-
-                    string key = line.Substring(0, sepIndex).Trim();
-                    string value = line.Substring(sepIndex + 1).Trim();
-
-                    if (key == "Coins" && int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int coins))
-                    {
-                        profile.Coins = Math.Max(0, coins);
-                    }
-                    else if (key == "SelectedCharacterId" && !string.IsNullOrWhiteSpace(value))
-                    {
-                        profile.SelectedCharacterId = value;
-                    }
-                    else if (key == "Area2Unlocked" && bool.TryParse(value, out bool area2))
-                    {
-                        profile.Area2Unlocked = area2;
-                    }
-                    else if (key == "UnlockedWeapons")
-                    {
-                        ParseIdList(value, profile.UnlockedWeaponIds, id => database.Weapons.ContainsKey(id));
-                    }
-                    else if (key == "UnlockedUpgrades")
-                    {
-                        ParseIdList(value, profile.UnlockedUpgradeIds, id => database.Upgrades.ContainsKey(id));
-                    }
-                    else if (key == "UnlockedCharacters")
-                    {
-                        ParseIdList(value, profile.UnlockedCharacterIds, id => database.Characters.ContainsKey(id));
-                    }
-                    else if (key == "CompletedAchievements")
-                    {
-                        ParseIdList(value, profile.CompletedAchievementIds, id => database.Achievements.ContainsKey(id));
-                    }
-                    else if (key == "AchievementProgress")
-                    {
-                        ParseProgressDictionary(value, profile.AchievementProgress);
-                    }
+                    ApplyProfileKeyValue(profile, database, key, value);
                 }
 
                 if (!profile.UnlockedCharacterIds.Contains(profile.SelectedCharacterId))
@@ -138,12 +85,43 @@ namespace RogueCards
 
                 return profile;
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or FormatException)
             {
                 warningMessage = $"Profile save was corrupted and reset to defaults ({ex.Message}).";
-                PlayerProfile fallback = dataRepository.CreateDefaultProfile(database);
+                PlayerProfile fallback = DataRepository.CreateDefaultProfile(database);
                 SaveProfile(fallback);
                 return fallback;
+            }
+        }
+
+        private static void ApplyProfileKeyValue(PlayerProfile profile, GameDatabase database, string key, string value)
+        {
+            switch (key)
+            {
+                case "Coins" when int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int coins):
+                    profile.Coins = Math.Max(0, coins);
+                    break;
+                case "SelectedCharacterId" when !string.IsNullOrWhiteSpace(value):
+                    profile.SelectedCharacterId = value;
+                    break;
+                case "Area2Unlocked" when bool.TryParse(value, out bool area2):
+                    profile.Area2Unlocked = area2;
+                    break;
+                case "UnlockedWeapons":
+                    ParseIdList(value, profile.UnlockedWeaponIds, database.Weapons.ContainsKey);
+                    break;
+                case "UnlockedUpgrades":
+                    ParseIdList(value, profile.UnlockedUpgradeIds, database.Upgrades.ContainsKey);
+                    break;
+                case "UnlockedCharacters":
+                    ParseIdList(value, profile.UnlockedCharacterIds, database.Characters.ContainsKey);
+                    break;
+                case "CompletedAchievements":
+                    ParseIdList(value, profile.CompletedAchievementIds, database.Achievements.ContainsKey);
+                    break;
+                case "AchievementProgress":
+                    ParseProgressDictionary(value, profile.AchievementProgress);
+                    break;
             }
         }
 
@@ -156,10 +134,10 @@ namespace RogueCards
 
             try
             {
-                Directory.CreateDirectory(dataRepository.SavesDirectory);
+                Directory.CreateDirectory(_savesDirectory);
 
-                List<string> lines = new List<string>
-                {
+                List<string> lines =
+                [
                     "# Rogue Cards - Meta-Progression Profile",
                     $"FORMAT_VERSION={SaveFormatVersion}",
                     $"Coins={profile.Coins.ToString(CultureInfo.InvariantCulture)}",
@@ -170,104 +148,108 @@ namespace RogueCards
                     $"UnlockedCharacters={string.Join(",", profile.UnlockedCharacterIds.OrderBy(x => x))}",
                     $"CompletedAchievements={string.Join(",", profile.CompletedAchievementIds.OrderBy(x => x))}",
                     $"AchievementProgress={SerializeProgressDictionary(profile.AchievementProgress)}"
-                };
+                ];
 
-                File.WriteAllLines(ProfileFilePath, lines);
+                File.WriteAllLines(_profileFilePath, lines);
             }
-            catch
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
+                Debug.WriteLine($"Failed to save profile: {ex.Message}");
             }
         }
 
         public bool SaveActiveRun(ActiveRunState run)
         {
-            if (run == null || run.Player == null || run.IsGameOver)
+            if (run?.Player == null || run.IsGameOver)
             {
                 return false;
             }
 
             try
             {
-                Directory.CreateDirectory(dataRepository.SavesDirectory);
-                List<string> lines = new List<string>();
+                Directory.CreateDirectory(_savesDirectory);
+                List<string> lines =
+                [
+                    "# Rogue Cards - Active Run Save File",
+                    $"FORMAT_VERSION={SaveFormatVersion}"
+                ];
 
-                lines.Add("# Rogue Cards - Active Run Save File");
-                lines.Add($"FORMAT_VERSION={SaveFormatVersion}");
+                AppendRunSection(lines, run);
+                AppendPlayerSection(lines, run.Player);
+                AppendEntitiesAndHazards(lines, run);
+                AppendRewardAndLogSections(lines, run);
 
-                lines.Add("[RUN]");
-                lines.Add($"CurrentWave={run.CurrentWave.ToString(CultureInfo.InvariantCulture)}");
-                lines.Add($"TurnNumber={run.TurnNumber.ToString(CultureInfo.InvariantCulture)}");
-                lines.Add($"IsStartingDraft={run.IsStartingDraft.ToString().ToLowerInvariant()}");
-                lines.Add($"UsedRerollInRun={run.UsedRerollInRun.ToString().ToLowerInvariant()}");
-                lines.Add($"TookDamageInCurrentWave={run.TookDamageInCurrentWave.ToString().ToLowerInvariant()}");
-                lines.Add($"NextEnemyInstanceId={run.NextEnemyInstanceId.ToString(CultureInfo.InvariantCulture)}");
-                lines.Add($"NextCardInstanceId={run.NextCardInstanceId.ToString(CultureInfo.InvariantCulture)}");
-                lines.Add($"CombatLogFilePath={SanitizeValue(run.CombatLogFilePath)}");
-
-                PlayerState p = run.Player;
-                lines.Add("[PLAYER]");
-                lines.Add($"CharacterId={SanitizeValue(p.CharacterId)}");
-                lines.Add($"PosX={p.Position.X.ToString(CultureInfo.InvariantCulture)}");
-                lines.Add($"PosY={p.Position.Y.ToString(CultureInfo.InvariantCulture)}");
-                lines.Add($"CurrentHp={p.CurrentHp.ToString(CultureInfo.InvariantCulture)}");
-                lines.Add($"MaxHp={p.MaxHp.ToString(CultureInfo.InvariantCulture)}");
-                lines.Add($"SpecialCooldown={p.SpecialCooldown.ToString(CultureInfo.InvariantCulture)}");
-                lines.Add($"SpecialMaxCooldown={p.SpecialMaxCooldown.ToString(CultureInfo.InvariantCulture)}");
-                lines.Add($"IsImmuneThisTurn={p.IsImmuneThisTurn.ToString().ToLowerInvariant()}");
-                lines.Add($"FreeRerollsRemaining={p.FreeRerollsRemaining.ToString(CultureInfo.InvariantCulture)}");
-
-                lines.Add("[HAND]");
-                foreach (CardInstance card in p.Hand)
-                {
-                    lines.Add(SerializeCard(card));
-                }
-
-                lines.Add("[EQUIPPED]");
-                foreach (CardInstance card in p.EquippedQueue)
-                {
-                    lines.Add(SerializeCard(card));
-                }
-
-                lines.Add("[ENEMIES]");
-                foreach (EnemyInstance enemy in run.Enemies)
-                {
-                    if (enemy.CurrentHp > 0)
-                    {
-                        lines.Add(SerializeEnemy(enemy));
-                    }
-                }
-
-                lines.Add("[HAZARDS]");
-                foreach (GroundHazard hazard in run.Hazards)
-                {
-                    lines.Add(SerializeHazard(hazard));
-                }
-
-                if (run.PendingReward != null)
-                {
-                    PendingRewardState r = run.PendingReward;
-                    lines.Add("[REWARD]");
-                    lines.Add($"RewardType={r.RewardType}");
-                    lines.Add($"RerollCount={r.RerollCount.ToString(CultureInfo.InvariantCulture)}");
-                    lines.Add($"NextRerollCost={r.NextRerollCost.ToString(CultureInfo.InvariantCulture)}");
-                    lines.Add($"DraftCardIds={string.Join(",", r.DraftCardIds)}");
-                    lines.Add($"DraftSelectedIds={string.Join(",", r.DraftSelectedIds)}");
-                    lines.Add($"UpgradeOptions={string.Join(",", r.UpgradeOptions.Select(o => o.ModifierType.ToString()))}");
-                }
-
-                lines.Add("[RECENT_LOG]");
-                int startIdx = Math.Max(0, run.RecentLogEntries.Count - 8);
-                for (int i = startIdx; i < run.RecentLogEntries.Count; i++)
-                {
-                    lines.Add(SanitizeLogLine(run.RecentLogEntries[i]));
-                }
-
-                File.WriteAllLines(ActiveRunFilePath, lines);
+                File.WriteAllLines(_activeRunFilePath, lines);
                 return true;
             }
-            catch
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
+                Debug.WriteLine($"Failed to save active run: {ex.Message}");
                 return false;
+            }
+        }
+
+        private static void AppendRunSection(List<string> lines, ActiveRunState run)
+        {
+            lines.Add("[RUN]");
+            lines.Add($"CurrentWave={run.CurrentWave.ToString(CultureInfo.InvariantCulture)}");
+            lines.Add($"TurnNumber={run.TurnNumber.ToString(CultureInfo.InvariantCulture)}");
+            lines.Add($"IsStartingDraft={run.IsStartingDraft.ToString().ToLowerInvariant()}");
+            lines.Add($"UsedRerollInRun={run.UsedRerollInRun.ToString().ToLowerInvariant()}");
+            lines.Add($"TookDamageInCurrentWave={run.TookDamageInCurrentWave.ToString().ToLowerInvariant()}");
+            lines.Add($"NextEnemyInstanceId={run.NextEnemyInstanceId.ToString(CultureInfo.InvariantCulture)}");
+            lines.Add($"NextCardInstanceId={run.NextCardInstanceId.ToString(CultureInfo.InvariantCulture)}");
+            lines.Add($"CombatLogFilePath={SanitizeValue(run.CombatLogFilePath)}");
+        }
+
+        private static void AppendPlayerSection(List<string> lines, PlayerState p)
+        {
+            lines.Add("[PLAYER]");
+            lines.Add($"CharacterId={SanitizeValue(p.CharacterId)}");
+            lines.Add($"PosX={p.Position.X.ToString(CultureInfo.InvariantCulture)}");
+            lines.Add($"PosY={p.Position.Y.ToString(CultureInfo.InvariantCulture)}");
+            lines.Add($"CurrentHp={p.CurrentHp.ToString(CultureInfo.InvariantCulture)}");
+            lines.Add($"MaxHp={p.MaxHp.ToString(CultureInfo.InvariantCulture)}");
+            lines.Add($"SpecialCooldown={p.SpecialCooldown.ToString(CultureInfo.InvariantCulture)}");
+            lines.Add($"SpecialMaxCooldown={p.SpecialMaxCooldown.ToString(CultureInfo.InvariantCulture)}");
+            lines.Add($"IsImmuneThisTurn={p.IsImmuneThisTurn.ToString().ToLowerInvariant()}");
+            lines.Add($"FreeRerollsRemaining={p.FreeRerollsRemaining.ToString(CultureInfo.InvariantCulture)}");
+
+            lines.Add("[HAND]");
+            lines.AddRange(p.Hand.Select(SerializeCard));
+
+            lines.Add("[EQUIPPED]");
+            lines.AddRange(p.EquippedQueue.Select(SerializeCard));
+        }
+
+        private static void AppendEntitiesAndHazards(List<string> lines, ActiveRunState run)
+        {
+            lines.Add("[ENEMIES]");
+            lines.AddRange(run.Enemies.Where(e => e.CurrentHp > 0).Select(SerializeEnemy));
+
+            lines.Add("[HAZARDS]");
+            lines.AddRange(run.Hazards.Select(SerializeHazard));
+        }
+
+        private static void AppendRewardAndLogSections(List<string> lines, ActiveRunState run)
+        {
+            if (run.PendingReward != null)
+            {
+                PendingRewardState r = run.PendingReward;
+                lines.Add("[REWARD]");
+                lines.Add($"RewardType={r.RewardType}");
+                lines.Add($"RerollCount={r.RerollCount.ToString(CultureInfo.InvariantCulture)}");
+                lines.Add($"NextRerollCost={r.NextRerollCost.ToString(CultureInfo.InvariantCulture)}");
+                lines.Add($"DraftCardIds={string.Join(",", r.DraftCardIds)}");
+                lines.Add($"DraftSelectedIds={string.Join(",", r.DraftSelectedIds)}");
+                lines.Add($"UpgradeOptions={string.Join(",", r.UpgradeOptions.Select(o => o.ModifierType.ToString()))}");
+            }
+
+            lines.Add("[RECENT_LOG]");
+            int startIdx = Math.Max(0, run.RecentLogEntries.Count - 8);
+            for (int i = startIdx; i < run.RecentLogEntries.Count; i++)
+            {
+                lines.Add(SanitizeLogLine(run.RecentLogEntries[i]));
             }
         }
 
@@ -276,7 +258,7 @@ namespace RogueCards
             loadedRun = null;
             errorMessage = string.Empty;
 
-            if (!File.Exists(ActiveRunFilePath))
+            if (!File.Exists(_activeRunFilePath))
             {
                 errorMessage = "No active run save file found.";
                 return false;
@@ -284,251 +266,274 @@ namespace RogueCards
 
             try
             {
-                string[] lines = File.ReadAllLines(ActiveRunFilePath);
-                int formatVersion = 0;
-                string currentSection = string.Empty;
-
-                ActiveRunState run = new ActiveRunState();
-                PlayerState player = new PlayerState();
-                run.Player = player;
-                PendingRewardState pendingReward = null;
-
-                bool hasRunSection = false;
-                bool hasPlayerSection = false;
-
-                foreach (string raw in lines)
-                {
-                    string line = raw.Trim();
-                    if (string.IsNullOrEmpty(line) || line.StartsWith("#"))
-                    {
-                        continue;
-                    }
-
-                    if (line.StartsWith("[") && line.EndsWith("]"))
-                    {
-                        currentSection = line;
-                        if (currentSection == "[RUN]")
-                        {
-                            hasRunSection = true;
-                        }
-                        else if (currentSection == "[PLAYER]")
-                        {
-                            hasPlayerSection = true;
-                        }
-                        else if (currentSection == "[REWARD]")
-                        {
-                            pendingReward = new PendingRewardState();
-                        }
-
-                        continue;
-                    }
-
-                    if (string.IsNullOrEmpty(currentSection))
-                    {
-                        if (TrySplitKeyValue(line, out string rootKey, out string rootVal) && rootKey == "FORMAT_VERSION")
-                        {
-                            int.TryParse(rootVal, NumberStyles.Integer, CultureInfo.InvariantCulture, out formatVersion);
-                        }
-
-                        continue;
-                    }
-
-                    if (currentSection == "[RUN]")
-                    {
-                        if (!TrySplitKeyValue(line, out string k, out string v))
-                        {
-                            continue;
-                        }
-
-                        if (k == "CurrentWave")
-                        {
-                            run.CurrentWave = ParseRequiredInt(v, 1, 20, "CurrentWave");
-                        }
-                        else if (k == "TurnNumber")
-                        {
-                            run.TurnNumber = ParseRequiredInt(v, 1, 100000, "TurnNumber");
-                        }
-                        else if (k == "IsStartingDraft")
-                        {
-                            run.IsStartingDraft = ParseRequiredBool(v, "IsStartingDraft");
-                        }
-                        else if (k == "UsedRerollInRun")
-                        {
-                            run.UsedRerollInRun = ParseRequiredBool(v, "UsedRerollInRun");
-                        }
-                        else if (k == "TookDamageInCurrentWave")
-                        {
-                            run.TookDamageInCurrentWave = ParseRequiredBool(v, "TookDamageInCurrentWave");
-                        }
-                        else if (k == "NextEnemyInstanceId")
-                        {
-                            run.NextEnemyInstanceId = ParseRequiredInt(v, 1, 1000000, "NextEnemyInstanceId");
-                        }
-                        else if (k == "NextCardInstanceId")
-                        {
-                            run.NextCardInstanceId = ParseRequiredInt(v, 1, 1000000, "NextCardInstanceId");
-                        }
-                        else if (k == "CombatLogFilePath")
-                        {
-                            run.CombatLogFilePath = v;
-                        }
-                    }
-                    else if (currentSection == "[PLAYER]")
-                    {
-                        if (!TrySplitKeyValue(line, out string k, out string v))
-                        {
-                            continue;
-                        }
-
-                        if (k == "CharacterId")
-                        {
-                            if (!database.Characters.ContainsKey(v))
-                            {
-                                throw new FormatException($"Unknown CharacterId '{v}'.");
-                            }
-
-                            player.CharacterId = v;
-                        }
-                        else if (k == "PosX")
-                        {
-                            int x = ParseRequiredInt(v, 0, GameEngine.GridSize - 1, "PosX");
-                            player.Position = new GridPos(x, player.Position.Y);
-                        }
-                        else if (k == "PosY")
-                        {
-                            int y = ParseRequiredInt(v, 0, GameEngine.GridSize - 1, "PosY");
-                            player.Position = new GridPos(player.Position.X, y);
-                        }
-                        else if (k == "CurrentHp")
-                        {
-                            player.CurrentHp = ParseRequiredInt(v, 1, 100, "CurrentHp");
-                        }
-                        else if (k == "MaxHp")
-                        {
-                            player.MaxHp = ParseRequiredInt(v, 1, 100, "MaxHp");
-                        }
-                        else if (k == "SpecialCooldown")
-                        {
-                            player.SpecialCooldown = ParseRequiredInt(v, 0, 50, "SpecialCooldown");
-                        }
-                        else if (k == "SpecialMaxCooldown")
-                        {
-                            player.SpecialMaxCooldown = ParseRequiredInt(v, 1, 50, "SpecialMaxCooldown");
-                        }
-                        else if (k == "IsImmuneThisTurn")
-                        {
-                            player.IsImmuneThisTurn = ParseRequiredBool(v, "IsImmuneThisTurn");
-                        }
-                        else if (k == "FreeRerollsRemaining")
-                        {
-                            player.FreeRerollsRemaining = ParseRequiredInt(v, 0, 50, "FreeRerollsRemaining");
-                        }
-                    }
-                    else if (currentSection == "[HAND]")
-                    {
-                        player.Hand.Add(DeserializeCard(line, database));
-                    }
-                    else if (currentSection == "[EQUIPPED]")
-                    {
-                        player.EquippedQueue.Add(DeserializeCard(line, database));
-                    }
-                    else if (currentSection == "[ENEMIES]")
-                    {
-                        run.Enemies.Add(DeserializeEnemy(line));
-                    }
-                    else if (currentSection == "[HAZARDS]")
-                    {
-                        run.Hazards.Add(DeserializeHazard(line));
-                    }
-                    else if (currentSection == "[REWARD]" && pendingReward != null)
-                    {
-                        if (!TrySplitKeyValue(line, out string k, out string v))
-                        {
-                            continue;
-                        }
-
-                        if (k == "RewardType")
-                        {
-                            if (!Enum.TryParse(v, true, out RewardType rType))
-                            {
-                                throw new FormatException($"Invalid RewardType '{v}'.");
-                            }
-
-                            pendingReward.RewardType = rType;
-                        }
-                        else if (k == "RerollCount")
-                        {
-                            pendingReward.RerollCount = ParseRequiredInt(v, 0, 100, "RerollCount");
-                        }
-                        else if (k == "NextRerollCost")
-                        {
-                            pendingReward.NextRerollCost = ParseRequiredInt(v, 1, 100000, "NextRerollCost");
-                        }
-                        else if (k == "DraftCardIds")
-                        {
-                            pendingReward.DraftCardIds = SplitCsvValidated(v, id => database.Weapons.ContainsKey(id));
-                        }
-                        else if (k == "DraftSelectedIds")
-                        {
-                            pendingReward.DraftSelectedIds = SplitCsvValidated(v, id => database.Weapons.ContainsKey(id));
-                        }
-                        else if (k == "UpgradeOptions")
-                        {
-                            pendingReward.UpgradeOptions.Clear();
-                            foreach (string token in v.Split(',', StringSplitOptions.RemoveEmptyEntries))
-                            {
-                                if (Enum.TryParse(token.Trim(), true, out UpgradeModifierType modType))
-                                {
-                                    pendingReward.UpgradeOptions.Add(BuildUpgradeOption(modType));
-                                }
-                            }
-                        }
-                    }
-                    else if (currentSection == "[RECENT_LOG]")
-                    {
-                        run.RecentLogEntries.Add(line);
-                    }
-                }
-
-                if (formatVersion != SaveFormatVersion)
-                {
-                    errorMessage = $"Incompatible save version ({formatVersion}).";
-                    return false;
-                }
-
-                if (!hasRunSection || !hasPlayerSection || string.IsNullOrWhiteSpace(player.CharacterId))
-                {
-                    errorMessage = "Save file is missing required [RUN] or [PLAYER] data.";
-                    return false;
-                }
-
-                if (player.CurrentHp > player.MaxHp)
-                {
-                    player.CurrentHp = player.MaxHp;
-                }
-
-                run.PendingReward = pendingReward;
-                loadedRun = run;
-                return true;
+                string[] lines = File.ReadAllLines(_activeRunFilePath);
+                return ParseActiveRunLines(lines, database, out loadedRun, out errorMessage);
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or FormatException)
             {
                 errorMessage = $"Corrupted save file ({ex.Message}).";
                 return false;
             }
         }
 
+        private static bool ParseActiveRunLines(
+            string[] lines,
+            GameDatabase database,
+            out ActiveRunState loadedRun,
+            out string errorMessage)
+        {
+            loadedRun = null;
+            errorMessage = string.Empty;
+
+            int formatVersion = 0;
+            string currentSection = string.Empty;
+            ActiveRunState run = new();
+            PendingRewardState pendingReward = null;
+            bool hasRunSection = false;
+            bool hasPlayerSection = false;
+
+            foreach (string raw in lines)
+            {
+                string line = raw.Trim();
+                if (string.IsNullOrEmpty(line) || line.StartsWith('#'))
+                {
+                    continue;
+                }
+
+                if (line.StartsWith('[') && line.EndsWith(']'))
+                {
+                    currentSection = line;
+                    hasRunSection |= currentSection == "[RUN]";
+                    hasPlayerSection |= currentSection == "[PLAYER]";
+                    if (currentSection == "[REWARD]")
+                    {
+                        pendingReward = new PendingRewardState();
+                    }
+
+                    continue;
+                }
+
+                if (string.IsNullOrEmpty(currentSection))
+                {
+                    if (TrySplitKeyValue(line, out string rootKey, out string rootVal) && rootKey == "FORMAT_VERSION")
+                    {
+                        int.TryParse(rootVal, NumberStyles.Integer, CultureInfo.InvariantCulture, out formatVersion);
+                    }
+
+                    continue;
+                }
+
+                ParseActiveRunSectionLine(currentSection, line, run, ref pendingReward, database);
+            }
+
+            return FinalizeLoadedRun(run, pendingReward, formatVersion, hasRunSection, hasPlayerSection, out loadedRun, out errorMessage);
+        }
+
+        private static void ParseActiveRunSectionLine(
+            string section,
+            string line,
+            ActiveRunState run,
+            ref PendingRewardState pendingReward,
+            GameDatabase database)
+        {
+            switch (section)
+            {
+                case "[RUN]":
+                    ParseRunKeyValue(run, line);
+                    break;
+                case "[PLAYER]":
+                    ParsePlayerKeyValue(run.Player, line, database);
+                    break;
+                case "[HAND]":
+                    run.Player.Hand.Add(DeserializeCard(line, database));
+                    break;
+                case "[EQUIPPED]":
+                    run.Player.EquippedQueue.Add(DeserializeCard(line, database));
+                    break;
+                case "[ENEMIES]":
+                    run.Enemies.Add(DeserializeEnemy(line));
+                    break;
+                case "[HAZARDS]":
+                    run.Hazards.Add(DeserializeHazard(line));
+                    break;
+                case "[REWARD]" when pendingReward != null:
+                    ParseRewardKeyValue(pendingReward, line, database);
+                    break;
+                case "[RECENT_LOG]":
+                    run.RecentLogEntries.Add(line);
+                    break;
+            }
+        }
+
+        private static void ParseRunKeyValue(ActiveRunState run, string line)
+        {
+            if (!TrySplitKeyValue(line, out string k, out string v))
+            {
+                return;
+            }
+
+            switch (k)
+            {
+                case "CurrentWave":
+                    run.CurrentWave = ParseRequiredInt(v, 1, 20, "CurrentWave");
+                    break;
+                case "TurnNumber":
+                    run.TurnNumber = ParseRequiredInt(v, 1, 100000, "TurnNumber");
+                    break;
+                case "IsStartingDraft":
+                    run.IsStartingDraft = ParseRequiredBool(v, "IsStartingDraft");
+                    break;
+                case "UsedRerollInRun":
+                    run.UsedRerollInRun = ParseRequiredBool(v, "UsedRerollInRun");
+                    break;
+                case "TookDamageInCurrentWave":
+                    run.TookDamageInCurrentWave = ParseRequiredBool(v, "TookDamageInCurrentWave");
+                    break;
+                case "NextEnemyInstanceId":
+                    run.NextEnemyInstanceId = ParseRequiredInt(v, 1, 1000000, "NextEnemyInstanceId");
+                    break;
+                case "NextCardInstanceId":
+                    run.NextCardInstanceId = ParseRequiredInt(v, 1, 1000000, "NextCardInstanceId");
+                    break;
+                case "CombatLogFilePath":
+                    run.CombatLogFilePath = v;
+                    break;
+            }
+        }
+
+        private static void ParsePlayerKeyValue(PlayerState player, string line, GameDatabase database)
+        {
+            if (!TrySplitKeyValue(line, out string k, out string v))
+            {
+                return;
+            }
+
+            switch (k)
+            {
+                case "CharacterId":
+                    if (!database.Characters.ContainsKey(v))
+                    {
+                        throw new FormatException($"Unknown CharacterId '{v}'.");
+                    }
+
+                    player.CharacterId = v;
+                    break;
+                case "PosX":
+                    player.Position = new GridPos(ParseRequiredInt(v, 0, GameEngine.GridSize - 1, "PosX"), player.Position.Y);
+                    break;
+                case "PosY":
+                    player.Position = new GridPos(player.Position.X, ParseRequiredInt(v, 0, GameEngine.GridSize - 1, "PosY"));
+                    break;
+                case "CurrentHp":
+                    player.CurrentHp = ParseRequiredInt(v, 1, 100, "CurrentHp");
+                    break;
+                case "MaxHp":
+                    player.MaxHp = ParseRequiredInt(v, 1, 100, "MaxHp");
+                    break;
+                case "SpecialCooldown":
+                    player.SpecialCooldown = ParseRequiredInt(v, 0, 50, "SpecialCooldown");
+                    break;
+                case "SpecialMaxCooldown":
+                    player.SpecialMaxCooldown = ParseRequiredInt(v, 1, 50, "SpecialMaxCooldown");
+                    break;
+                case "IsImmuneThisTurn":
+                    player.IsImmuneThisTurn = ParseRequiredBool(v, "IsImmuneThisTurn");
+                    break;
+                case "FreeRerollsRemaining":
+                    player.FreeRerollsRemaining = ParseRequiredInt(v, 0, 50, "FreeRerollsRemaining");
+                    break;
+            }
+        }
+
+        private static void ParseRewardKeyValue(PendingRewardState reward, string line, GameDatabase database)
+        {
+            if (!TrySplitKeyValue(line, out string k, out string v))
+            {
+                return;
+            }
+
+            switch (k)
+            {
+                case "RewardType":
+                    if (!Enum.TryParse(v, true, out RewardType rType))
+                    {
+                        throw new FormatException($"Invalid RewardType '{v}'.");
+                    }
+
+                    reward.RewardType = rType;
+                    break;
+                case "RerollCount":
+                    reward.RerollCount = ParseRequiredInt(v, 0, 100, "RerollCount");
+                    break;
+                case "NextRerollCost":
+                    reward.NextRerollCost = ParseRequiredInt(v, 1, 100000, "NextRerollCost");
+                    break;
+                case "DraftCardIds":
+                    reward.DraftCardIds = SplitCsvValidated(v, database.Weapons.ContainsKey);
+                    break;
+                case "DraftSelectedIds":
+                    reward.DraftSelectedIds = SplitCsvValidated(v, database.Weapons.ContainsKey);
+                    break;
+                case "UpgradeOptions":
+                    reward.UpgradeOptions.Clear();
+                    foreach (string token in v.Split(',', StringSplitOptions.RemoveEmptyEntries))
+                    {
+                        if (Enum.TryParse(token.Trim(), true, out UpgradeModifierType modType))
+                        {
+                            reward.UpgradeOptions.Add(BuildUpgradeOption(modType));
+                        }
+                    }
+
+                    break;
+            }
+        }
+
+        private static bool FinalizeLoadedRun(
+            ActiveRunState run,
+            PendingRewardState pendingReward,
+            int formatVersion,
+            bool hasRunSection,
+            bool hasPlayerSection,
+            out ActiveRunState loadedRun,
+            out string errorMessage)
+        {
+            loadedRun = null;
+            errorMessage = string.Empty;
+
+            if (formatVersion != SaveFormatVersion)
+            {
+                errorMessage = $"Incompatible save version ({formatVersion}).";
+                return false;
+            }
+
+            if (!hasRunSection || !hasPlayerSection || string.IsNullOrWhiteSpace(run.Player.CharacterId))
+            {
+                errorMessage = "Save file is missing required [RUN] or [PLAYER] data.";
+                return false;
+            }
+
+            if (run.Player.CurrentHp > run.Player.MaxHp)
+            {
+                run.Player.CurrentHp = run.Player.MaxHp;
+            }
+
+            run.PendingReward = pendingReward;
+            loadedRun = run;
+            return true;
+        }
+
         public void ClearActiveRunSave()
         {
             try
             {
-                if (File.Exists(ActiveRunFilePath))
+                if (File.Exists(_activeRunFilePath))
                 {
-                    File.Delete(ActiveRunFilePath);
+                    File.Delete(_activeRunFilePath);
                 }
             }
-            catch
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
+                Debug.WriteLine($"Failed to clear active run save: {ex.Message}");
             }
         }
 
@@ -538,8 +543,8 @@ namespace RogueCards
                 ? string.Join(";", card.AppliedModifiers.Select(SanitizeValue))
                 : "-";
 
-            return string.Join("|", new string[]
-            {
+            string[] fields =
+            [
                 card.InstanceId.ToString(CultureInfo.InvariantCulture),
                 SanitizeValue(card.DefinitionId),
                 card.CurrentCooldown.ToString(CultureInfo.InvariantCulture),
@@ -547,7 +552,9 @@ namespace RogueCards
                 card.CooldownModifier.ToString(CultureInfo.InvariantCulture),
                 card.HasPoison.ToString().ToLowerInvariant(),
                 mods
-            });
+            ];
+
+            return string.Join("|", fields);
         }
 
         private static CardInstance DeserializeCard(string line, GameDatabase database)
@@ -558,36 +565,25 @@ namespace RogueCards
                 throw new FormatException($"Malformed card record ({parts.Length} fields).");
             }
 
-            int instanceId = ParseRequiredInt(parts[0], 1, 1000000, "Card.InstanceId");
             string defId = parts[1].Trim();
             if (!database.Weapons.TryGetValue(defId, out WeaponDefinition def))
             {
                 throw new FormatException($"Unknown weapon '{defId}'.");
             }
 
-            int currentCd = ParseRequiredInt(parts[2], 0, 50, "Card.CurrentCooldown");
-            int bonusDmg = ParseRequiredInt(parts[3], -20, 50, "Card.BonusDamage");
-            int cdMod = ParseRequiredInt(parts[4], -20, 20, "Card.CooldownModifier");
-            bool hasPoison = ParseRequiredBool(parts[5], "Card.HasPoison");
-
-            List<string> modifiers = new List<string>();
-            if (parts[6] != "-")
-            {
-                foreach (string token in parts[6].Split(';', StringSplitOptions.RemoveEmptyEntries))
-                {
-                    modifiers.Add(token.Trim());
-                }
-            }
+            List<string> modifiers = parts[6] == "-"
+                ? []
+                : parts[6].Split(';', StringSplitOptions.RemoveEmptyEntries).Select(t => t.Trim()).ToList();
 
             return new CardInstance
             {
-                InstanceId = instanceId,
+                InstanceId = ParseRequiredInt(parts[0], 1, 1000000, "Card.InstanceId"),
                 DefinitionId = defId,
                 Definition = def,
-                CurrentCooldown = currentCd,
-                BonusDamage = bonusDmg,
-                CooldownModifier = cdMod,
-                HasPoison = hasPoison,
+                CurrentCooldown = ParseRequiredInt(parts[2], 0, 50, "Card.CurrentCooldown"),
+                BonusDamage = ParseRequiredInt(parts[3], -20, 50, "Card.BonusDamage"),
+                CooldownModifier = ParseRequiredInt(parts[4], -20, 20, "Card.CooldownModifier"),
+                HasPoison = ParseRequiredBool(parts[5], "Card.HasPoison"),
                 AppliedModifiers = modifiers
             };
         }
@@ -598,8 +594,8 @@ namespace RogueCards
                 ? string.Join(",", e.LockedTargetTiles.Select(t => $"{t.X}:{t.Y}"))
                 : "-";
 
-            return string.Join("|", new string[]
-            {
+            string[] fields =
+            [
                 e.InstanceId.ToString(CultureInfo.InvariantCulture),
                 e.Type.ToString(),
                 SanitizeValue(e.DefinitionId),
@@ -620,7 +616,9 @@ namespace RogueCards
                 e.BossCycleIndex.ToString(CultureInfo.InvariantCulture),
                 e.BossSpawnedDuringCharge.ToString().ToLowerInvariant(),
                 lockedTiles
-            });
+            ];
+
+            return string.Join("|", fields);
         }
 
         private static EnemyInstance DeserializeEnemy(string line)
@@ -641,7 +639,7 @@ namespace RogueCards
                 throw new FormatException($"Invalid EnemyState '{parts[9]}'.");
             }
 
-            EnemyInstance enemy = new EnemyInstance
+            EnemyInstance enemy = new()
             {
                 InstanceId = ParseRequiredInt(parts[0], 1, 1000000, "Enemy.InstanceId"),
                 Type = type,
@@ -653,6 +651,7 @@ namespace RogueCards
                 CurrentHp = ParseRequiredInt(parts[6], 1, 500, "Enemy.CurrentHp"),
                 MaxHp = ParseRequiredInt(parts[7], 1, 500, "Enemy.MaxHp"),
                 CoinDrop = ParseRequiredInt(parts[8], 0, 500, "Enemy.CoinDrop"),
+                IsBoss = type == EnemyType.VikingChief,
                 State = state,
                 EquippedWeaponLabel = parts[10].Trim(),
                 ChargeTurnsRemaining = ParseRequiredInt(parts[11], 0, 10, "Enemy.ChargeTurns"),
@@ -668,25 +667,30 @@ namespace RogueCards
 
             if (parts[19] != "-")
             {
-                foreach (string tileToken in parts[19].Split(',', StringSplitOptions.RemoveEmptyEntries))
-                {
-                    string[] xy = tileToken.Split(':');
-                    if (xy.Length == 2)
-                    {
-                        int tx = ParseRequiredInt(xy[0], 0, GameEngine.GridSize - 1, "Tile.X");
-                        int ty = ParseRequiredInt(xy[1], 0, GameEngine.GridSize - 1, "Tile.Y");
-                        enemy.LockedTargetTiles.Add(new GridPos(tx, ty));
-                    }
-                }
+                ParseLockedTargetTiles(parts[19], enemy.LockedTargetTiles);
             }
 
             return enemy;
         }
 
+        private static void ParseLockedTargetTiles(string rawTiles, List<GridPos> target)
+        {
+            foreach (string tileToken in rawTiles.Split(',', StringSplitOptions.RemoveEmptyEntries))
+            {
+                string[] xy = tileToken.Split(':');
+                if (xy.Length == 2)
+                {
+                    int tx = ParseRequiredInt(xy[0], 0, GameEngine.GridSize - 1, "Tile.X");
+                    int ty = ParseRequiredInt(xy[1], 0, GameEngine.GridSize - 1, "Tile.Y");
+                    target.Add(new GridPos(tx, ty));
+                }
+            }
+        }
+
         private static string SerializeHazard(GroundHazard h)
         {
-            return string.Join("|", new string[]
-            {
+            string[] fields =
+            [
                 h.Type.ToString(),
                 h.Position.X.ToString(CultureInfo.InvariantCulture),
                 h.Position.Y.ToString(CultureInfo.InvariantCulture),
@@ -694,7 +698,9 @@ namespace RogueCards
                 h.Damage.ToString(CultureInfo.InvariantCulture),
                 h.IsArmed.ToString().ToLowerInvariant(),
                 h.AppliesStun.ToString().ToLowerInvariant()
-            });
+            ];
+
+            return string.Join("|", fields);
         }
 
         private static GroundHazard DeserializeHazard(string line)
@@ -723,51 +729,39 @@ namespace RogueCards
             };
         }
 
-        public static UpgradeOption BuildUpgradeOption(UpgradeModifierType modifierType)
+        public static UpgradeOption BuildUpgradeOption(UpgradeModifierType modifierType) => modifierType switch
         {
-            switch (modifierType)
+            UpgradeModifierType.PlusOneDamage => new UpgradeOption
             {
-                case UpgradeModifierType.PlusOneDamage:
-                    return new UpgradeOption
-                    {
-                        ModifierType = modifierType,
-                        Name = "+1 Damage",
-                        Description = "Permanently adds +1 damage to the chosen card for this run."
-                    };
-
-                case UpgradeModifierType.PlusTwoDamage:
-                    return new UpgradeOption
-                    {
-                        ModifierType = modifierType,
-                        Name = "+2 Damage",
-                        Description = "Permanently adds +2 damage to the chosen card for this run."
-                    };
-
-                case UpgradeModifierType.MinusOneCooldown:
-                    return new UpgradeOption
-                    {
-                        ModifierType = modifierType,
-                        Name = "-1 Cooldown",
-                        Description = "Reduces the maximum cooldown of the chosen card by 1 turn (min 1)."
-                    };
-
-                case UpgradeModifierType.MinusTwoCooldown:
-                    return new UpgradeOption
-                    {
-                        ModifierType = modifierType,
-                        Name = "-2 Cooldown",
-                        Description = "Reduces the maximum cooldown of the chosen card by 2 turns (min 1)."
-                    };
-
-                default:
-                    return new UpgradeOption
-                    {
-                        ModifierType = UpgradeModifierType.PoisonEffect,
-                        Name = "Poison",
-                        Description = "Adds +1 to max cooldown cost. Hit enemies take 1 poison dmg/turn for 3 turns."
-                    };
+                ModifierType = modifierType,
+                Name = "+1 Damage",
+                Description = "Permanently adds +1 damage to the chosen card for this run."
+            },
+            UpgradeModifierType.PlusTwoDamage => new UpgradeOption
+            {
+                ModifierType = modifierType,
+                Name = "+2 Damage",
+                Description = "Permanently adds +2 damage to the chosen card for this run."
+            },
+            UpgradeModifierType.MinusOneCooldown => new UpgradeOption
+            {
+                ModifierType = modifierType,
+                Name = "-1 Cooldown",
+                Description = "Reduces the maximum cooldown of the chosen card by 1 turn (min 1)."
+            },
+            UpgradeModifierType.MinusTwoCooldown => new UpgradeOption
+            {
+                ModifierType = modifierType,
+                Name = "-2 Cooldown",
+                Description = "Reduces the maximum cooldown of the chosen card by 2 turns (min 1)."
+            },
+            _ => new UpgradeOption
+            {
+                ModifierType = UpgradeModifierType.PoisonEffect,
+                Name = "Poison",
+                Description = "Adds +1 to max cooldown cost. Hit enemies take 1 poison dmg/turn for 3 turns."
             }
-        }
+        };
 
         private static void ParseIdList(string csv, HashSet<string> target, Func<string, bool> validator)
         {
@@ -788,22 +782,15 @@ namespace RogueCards
 
         private static List<string> SplitCsvValidated(string csv, Func<string, bool> validator)
         {
-            List<string> list = new List<string>();
             if (string.IsNullOrWhiteSpace(csv))
             {
-                return list;
+                return [];
             }
 
-            foreach (string token in csv.Split(',', StringSplitOptions.RemoveEmptyEntries))
-            {
-                string id = token.Trim();
-                if (validator(id))
-                {
-                    list.Add(id);
-                }
-            }
-
-            return list;
+            return csv.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                .Select(token => token.Trim())
+                .Where(validator)
+                .ToList();
         }
 
         private static void ParseProgressDictionary(string raw, Dictionary<string, int> target)
@@ -831,7 +818,10 @@ namespace RogueCards
                 return string.Empty;
             }
 
-            return string.Join(",", dict.OrderBy(kv => kv.Key).Select(kv => $"{SanitizeValue(kv.Key)}:{kv.Value.ToString(CultureInfo.InvariantCulture)}"));
+            return string.Join(
+                ",",
+                dict.OrderBy(kv => kv.Key)
+                    .Select(kv => $"{SanitizeValue(kv.Key)}:{kv.Value.ToString(CultureInfo.InvariantCulture)}"));
         }
 
         private static bool TrySplitKeyValue(string line, out string key, out string value)
@@ -871,24 +861,10 @@ namespace RogueCards
             return value;
         }
 
-        private static string SanitizeValue(string value)
-        {
-            if (string.IsNullOrEmpty(value))
-            {
-                return string.Empty;
-            }
+        private static string SanitizeValue(string value) =>
+            string.IsNullOrEmpty(value) ? string.Empty : value.Replace("|", "/").Replace("\r", " ").Replace("\n", " ");
 
-            return value.Replace("|", "/").Replace("\r", " ").Replace("\n", " ");
-        }
-
-        private static string SanitizeLogLine(string value)
-        {
-            if (string.IsNullOrEmpty(value))
-            {
-                return string.Empty;
-            }
-
-            return value.Replace("\r", " ").Replace("\n", " ");
-        }
+        private static string SanitizeLogLine(string value) =>
+            string.IsNullOrEmpty(value) ? string.Empty : value.Replace("\r", " ").Replace("\n", " ");
     }
 }

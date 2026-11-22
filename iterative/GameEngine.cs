@@ -1,7 +1,5 @@
 ﻿#nullable disable
-using System;
-using System.Collections.Generic;
-using System.Linq;
+using System.Security.Cryptography;
 
 namespace RogueCards
 {
@@ -10,17 +8,14 @@ namespace RogueCards
         public const int GridSize = 5;
         public const int MaxEquippedSlots = 3;
 
-        private readonly GameDatabase database;
-        private readonly PlayerProfile profile;
-        private readonly PersistenceManager persistenceManager;
-        private readonly AchievementManager achievementManager;
-        private readonly Random random;
-        private readonly CardResolver cardResolver;
-        private readonly EnemyAI enemyAI;
+        private readonly GameDatabase _database;
+        private readonly PlayerProfile _profile;
+        private readonly PersistenceManager _persistenceManager;
+        private readonly AchievementManager _achievementManager;
 
-        private int currentExecutingQueueIndex;
-        private bool isExecutingQueue;
-        private readonly HashSet<int> cardsPlayedThisTurn = new HashSet<int>();
+        private int _currentExecutingQueueIndex;
+        private bool _isExecutingQueue;
+        private readonly HashSet<int> _cardsPlayedThisTurn = [];
 
         public ActiveRunState CurrentRun { get; private set; }
         public string LastActionFeedback { get; private set; }
@@ -28,31 +23,25 @@ namespace RogueCards
         public GridPos LastSpecialOrigin { get; private set; }
         public int LastSpecialSequenceId { get; private set; }
 
-        public bool IsExecutingQueue
-        {
-            get { return isExecutingQueue; }
-        }
-
-        public int CurrentExecutingQueueIndex
-        {
-            get { return currentExecutingQueueIndex; }
-        }
+        public bool IsExecutingQueue => _isExecutingQueue;
+        public int CurrentExecutingQueueIndex => _currentExecutingQueueIndex;
+        public GameDatabase Database => _database;
 
         public CardInstance CurrentAimingCard
         {
             get
             {
-                if (!isExecutingQueue || CurrentRun == null || CurrentRun.Player == null)
+                if (!_isExecutingQueue || CurrentRun?.Player == null)
                 {
                     return null;
                 }
 
-                if (currentExecutingQueueIndex < 0 || currentExecutingQueueIndex >= CurrentRun.Player.EquippedQueue.Count)
+                if (_currentExecutingQueueIndex < 0 || _currentExecutingQueueIndex >= CurrentRun.Player.EquippedQueue.Count)
                 {
                     return null;
                 }
 
-                return CurrentRun.Player.EquippedQueue[currentExecutingQueueIndex];
+                return CurrentRun.Player.EquippedQueue[_currentExecutingQueueIndex];
             }
         }
 
@@ -62,44 +51,32 @@ namespace RogueCards
             PersistenceManager persistenceManager,
             AchievementManager achievementManager)
         {
-            this.database = database;
-            this.profile = profile;
-            this.persistenceManager = persistenceManager;
-            this.achievementManager = achievementManager;
-            random = new Random();
-            cardResolver = new CardResolver();
-            enemyAI = new EnemyAI(random);
+            _database = database;
+            _profile = profile;
+            _persistenceManager = persistenceManager;
+            _achievementManager = achievementManager;
             LastActionFeedback = string.Empty;
             LastSpecialEffectType = string.Empty;
-        }
-
-        public GameDatabase Database
-        {
-            get { return database; }
         }
 
         public void StartNewRun()
         {
             CharacterDefinition character = GetSelectedCharacterDefinition();
-            int maxHpBonus = GetMaxHpBonus();
-            int maxHp = character.BaseHp + maxHpBonus;
-            int freeRerolls = GetFreeRerollBonus();
-
-            PlayerState player = new PlayerState
-            {
-                CharacterId = character.Id,
-                Position = new GridPos(2, 2),
-                CurrentHp = maxHp,
-                MaxHp = maxHp,
-                SpecialCooldown = 0,
-                SpecialMaxCooldown = character.SpecialCooldown,
-                IsImmuneThisTurn = false,
-                FreeRerollsRemaining = freeRerolls
-            };
+            int maxHp = character.BaseHp + GetMaxHpBonus();
 
             CurrentRun = new ActiveRunState
             {
-                Player = player,
+                Player = new PlayerState
+                {
+                    CharacterId = character.Id,
+                    Position = new GridPos(2, 2),
+                    CurrentHp = maxHp,
+                    MaxHp = maxHp,
+                    SpecialCooldown = 0,
+                    SpecialMaxCooldown = character.SpecialCooldown,
+                    IsImmuneThisTurn = false,
+                    FreeRerollsRemaining = GetFreeRerollBonus()
+                },
                 CurrentWave = 1,
                 TurnNumber = 1,
                 IsStartingDraft = true,
@@ -110,19 +87,18 @@ namespace RogueCards
                 GameOverReason = string.Empty,
                 NextEnemyInstanceId = 1,
                 NextCardInstanceId = 1,
-                CombatLogFilePath = persistenceManager.CreateNewCombatLogPath()
+                CombatLogFilePath = _persistenceManager.CreateNewCombatLogPath()
             };
 
-            isExecutingQueue = false;
-            currentExecutingQueueIndex = 0;
-            cardsPlayedThisTurn.Clear();
+            _isExecutingQueue = false;
+            _currentExecutingQueueIndex = 0;
+            _cardsPlayedThisTurn.Clear();
 
             BuildStartingDraftOptions();
-            achievementManager.RecordRunStarted();
+            _achievementManager.RecordRunStarted();
 
             LastActionFeedback = $"Choose 2 starting cards for {character.Name}.";
             LastSpecialEffectType = string.Empty;
-
             AddCombatLog($"New run started as {character.Name} ({maxHp}/{maxHp} HP).");
 
             List<string> activeUpgrades = GetActiveUpgradeNames();
@@ -137,43 +113,34 @@ namespace RogueCards
         public void LoadSavedRun(ActiveRunState loadedRun)
         {
             CurrentRun = loadedRun;
-            isExecutingQueue = false;
-            currentExecutingQueueIndex = 0;
-            cardsPlayedThisTurn.Clear();
+            _isExecutingQueue = false;
+            _currentExecutingQueueIndex = 0;
+            _cardsPlayedThisTurn.Clear();
             LastSpecialEffectType = string.Empty;
 
             if (string.IsNullOrWhiteSpace(CurrentRun.CombatLogFilePath))
             {
-                CurrentRun.CombatLogFilePath = persistenceManager.CreateNewCombatLogPath();
+                CurrentRun.CombatLogFilePath = _persistenceManager.CreateNewCombatLogPath();
             }
 
             LastActionFeedback = $"Resumed saved run (Wave {CurrentRun.CurrentWave}, Turn {CurrentRun.TurnNumber}).";
             AddCombatLog($"--- Resumed saved run (Wave {CurrentRun.CurrentWave}, Turn {CurrentRun.TurnNumber}) ---");
         }
 
-        public bool SaveCurrentRun()
-        {
-            if (CurrentRun == null || CurrentRun.IsGameOver)
-            {
-                return false;
-            }
-
-            return persistenceManager.SaveActiveRun(CurrentRun);
-        }
+        public bool SaveCurrentRun() =>
+            CurrentRun != null && !CurrentRun.IsGameOver && _persistenceManager.SaveActiveRun(CurrentRun);
 
         private void BuildStartingDraftOptions()
         {
-            List<WeaponDefinition> unlocked = database.WeaponList
-                .Where(w => profile.UnlockedWeaponIds.Contains(w.Id))
-                .OrderBy(_ => random.Next())
-                .Take(4)
-                .ToList();
+            List<WeaponDefinition> unlocked = PickRandomItems(
+                _database.WeaponList.Where(w => _profile.UnlockedWeaponIds.Contains(w.Id)),
+                4);
 
             CurrentRun.PendingReward = new PendingRewardState
             {
                 RewardType = RewardType.PickCard,
                 DraftCardIds = unlocked.Select(w => w.Id).ToList(),
-                DraftSelectedIds = new List<string>(),
+                DraftSelectedIds = [],
                 RerollCount = 0,
                 NextRerollCost = 5
             };
@@ -192,9 +159,8 @@ namespace RogueCards
                 return false;
             }
 
-            if (draft.DraftSelectedIds.Contains(weaponId))
+            if (draft.DraftSelectedIds.Remove(weaponId))
             {
-                draft.DraftSelectedIds.Remove(weaponId);
                 return true;
             }
 
@@ -224,11 +190,11 @@ namespace RogueCards
             }
 
             CurrentRun.Player.Hand.Clear();
-            List<string> chosenNames = new List<string>();
+            List<string> chosenNames = [];
 
             foreach (string weaponId in draft.DraftSelectedIds)
             {
-                if (database.Weapons.TryGetValue(weaponId, out WeaponDefinition weapon))
+                if (_database.Weapons.TryGetValue(weaponId, out WeaponDefinition weapon))
                 {
                     CurrentRun.Player.Hand.Add(CreateCardInstance(weapon));
                     chosenNames.Add(weapon.Name);
@@ -241,15 +207,15 @@ namespace RogueCards
             LastActionFeedback = $"Wave 1 begun! Starting hand: {string.Join(" & ", chosenNames)}.";
             AddCombatLog($"Drafted starting hand: {string.Join(", ", chosenNames)}.");
 
-            enemyAI.SpawnWave(this, CurrentRun.CurrentWave);
-            achievementManager.RecordWaveReached(CurrentRun.CurrentWave);
+            EnemyAi.SpawnWave(this, CurrentRun.CurrentWave);
+            _achievementManager.RecordWaveReached(CurrentRun.CurrentWave);
             SaveCurrentRun();
             return true;
         }
 
         public bool TryEquipCardFromHand(int handIndex)
         {
-            if (CurrentRun == null || CurrentRun.Player == null || CurrentRun.IsGameOver || isExecutingQueue)
+            if (!CanTakeArenaAction())
             {
                 return false;
             }
@@ -284,17 +250,17 @@ namespace RogueCards
             return true;
         }
 
-        public bool ReorderEquippedCard(int fromIndex, int toIndex)
+        public void ReorderEquippedCard(int fromIndex, int toIndex)
         {
-            if (CurrentRun == null || CurrentRun.Player == null || isExecutingQueue)
+            if (CurrentRun?.Player == null || _isExecutingQueue)
             {
-                return false;
+                return;
             }
 
             List<CardInstance> queue = CurrentRun.Player.EquippedQueue;
             if (fromIndex < 0 || fromIndex >= queue.Count || toIndex < 0 || toIndex >= queue.Count || fromIndex == toIndex)
             {
-                return false;
+                return;
             }
 
             CardInstance moved = queue[fromIndex];
@@ -304,12 +270,11 @@ namespace RogueCards
             LastActionFeedback = $"Reordered {moved.Definition.Name} to Slot #{toIndex + 1} (0 turns).";
             AddCombatLog($"Reordered queue: {moved.Definition.Name} moved to Slot #{toIndex + 1} (free action).");
             SaveCurrentRun();
-            return true;
         }
 
         public bool BeginPlayEquippedQueue()
         {
-            if (CurrentRun == null || CurrentRun.Player == null || CurrentRun.IsGameOver || isExecutingQueue)
+            if (!CanTakeArenaAction())
             {
                 return false;
             }
@@ -320,9 +285,9 @@ namespace RogueCards
                 return false;
             }
 
-            isExecutingQueue = true;
-            currentExecutingQueueIndex = 0;
-            cardsPlayedThisTurn.Clear();
+            _isExecutingQueue = true;
+            _currentExecutingQueueIndex = 0;
+            _cardsPlayedThisTurn.Clear();
 
             AdvanceQueueThroughAutoCards();
             return true;
@@ -330,14 +295,14 @@ namespace RogueCards
 
         public bool CancelAimingIfPossible()
         {
-            if (!isExecutingQueue || currentExecutingQueueIndex > 0)
+            if (!_isExecutingQueue || _currentExecutingQueueIndex > 0)
             {
                 return false;
             }
 
-            isExecutingQueue = false;
-            currentExecutingQueueIndex = 0;
-            cardsPlayedThisTurn.Clear();
+            _isExecutingQueue = false;
+            _currentExecutingQueueIndex = 0;
+            _cardsPlayedThisTurn.Clear();
             LastActionFeedback = "Cancelled queue execution.";
             return true;
         }
@@ -345,17 +310,14 @@ namespace RogueCards
         public AimPreviewResult GetAimPreview(GridPos direction)
         {
             CardInstance card = CurrentAimingCard;
-            if (card == null)
-            {
-                return new AimPreviewResult { IsValidAim = false };
-            }
-
-            return cardResolver.ComputeAimPreview(CurrentRun, card, direction);
+            return card == null
+                ? new AimPreviewResult { IsValidAim = false }
+                : CardResolver.ComputeAimPreview(CurrentRun, card, direction);
         }
 
         public bool ConfirmAimDirection(GridPos direction)
         {
-            if (!isExecutingQueue || CurrentRun == null || CurrentRun.Player == null)
+            if (!_isExecutingQueue || CurrentRun?.Player == null)
             {
                 return false;
             }
@@ -367,24 +329,23 @@ namespace RogueCards
                 return true;
             }
 
-            AimPreviewResult preview = cardResolver.ComputeAimPreview(CurrentRun, card, direction);
+            AimPreviewResult preview = CardResolver.ComputeAimPreview(CurrentRun, card, direction);
             if (!preview.IsValidAim)
             {
                 LastActionFeedback = $"Invalid aim direction for {card.Definition.Name}.";
                 return false;
             }
 
-            bool resolved = cardResolver.ResolveCard(this, card, direction);
-            if (!resolved)
+            if (!CardResolver.ResolveCard(this, card, direction))
             {
                 return false;
             }
 
             card.CurrentCooldown = GetEffectiveCardMaxCooldown(card);
-            cardsPlayedThisTurn.Add(card.InstanceId);
-            achievementManager.RecordCardPlayed(card.Definition.Name);
+            _cardsPlayedThisTurn.Add(card.InstanceId);
+            _achievementManager.RecordCardPlayed(card.Definition.Name);
             LastActionFeedback = $"Executed {card.Definition.Name}!";
-            currentExecutingQueueIndex++;
+            _currentExecutingQueueIndex++;
 
             if (CurrentRun.IsGameOver || CurrentRun.Enemies.All(e => e.CurrentHp <= 0))
             {
@@ -398,16 +359,16 @@ namespace RogueCards
 
         private void AdvanceQueueThroughAutoCards()
         {
-            while (isExecutingQueue && currentExecutingQueueIndex < CurrentRun.Player.EquippedQueue.Count)
+            while (_isExecutingQueue && _currentExecutingQueueIndex < CurrentRun.Player.EquippedQueue.Count)
             {
-                CardInstance nextCard = CurrentRun.Player.EquippedQueue[currentExecutingQueueIndex];
-                if (nextCard.Definition.Targeting == TargetingType.Self || nextCard.Definition.Targeting == TargetingType.None)
+                CardInstance nextCard = CurrentRun.Player.EquippedQueue[_currentExecutingQueueIndex];
+                if (nextCard.Definition.Targeting is TargetingType.Self or TargetingType.None)
                 {
-                    cardResolver.ResolveCard(this, nextCard, new GridPos(0, 0));
+                    CardResolver.ResolveCard(this, nextCard, new GridPos(0, 0));
                     nextCard.CurrentCooldown = GetEffectiveCardMaxCooldown(nextCard);
-                    cardsPlayedThisTurn.Add(nextCard.InstanceId);
-                    achievementManager.RecordCardPlayed(nextCard.Definition.Name);
-                    currentExecutingQueueIndex++;
+                    _cardsPlayedThisTurn.Add(nextCard.InstanceId);
+                    _achievementManager.RecordCardPlayed(nextCard.Definition.Name);
+                    _currentExecutingQueueIndex++;
                 }
                 else
                 {
@@ -416,7 +377,7 @@ namespace RogueCards
                 }
             }
 
-            if (isExecutingQueue && currentExecutingQueueIndex >= CurrentRun.Player.EquippedQueue.Count)
+            if (_isExecutingQueue && _currentExecutingQueueIndex >= CurrentRun.Player.EquippedQueue.Count)
             {
                 FinishEquippedQueueExecution();
             }
@@ -425,40 +386,31 @@ namespace RogueCards
         private void FinishEquippedQueueExecution()
         {
             PlayerState player = CurrentRun.Player;
-            int playedCount = currentExecutingQueueIndex;
+            int playedCount = _currentExecutingQueueIndex;
 
             if (playedCount > 0)
             {
-                achievementManager.RecordCardsPlayedInSingleTurn(playedCount);
+                _achievementManager.RecordCardsPlayedInSingleTurn(playedCount);
             }
 
-            foreach (CardInstance queuedCard in player.EquippedQueue)
-            {
-                player.Hand.Add(queuedCard);
-            }
-
+            player.Hand.AddRange(player.EquippedQueue);
             player.EquippedQueue.Clear();
-            isExecutingQueue = false;
-            currentExecutingQueueIndex = 0;
+            _isExecutingQueue = false;
+            _currentExecutingQueueIndex = 0;
 
             LastActionFeedback = $"Executed {playedCount} card(s).";
             EndPlayerTurn(false, false);
-            cardsPlayedThisTurn.Clear();
+            _cardsPlayedThisTurn.Clear();
         }
 
-        public void ResetAllCooldowns()
+        private void ResetAllCooldowns()
         {
-            if (CurrentRun == null || CurrentRun.Player == null)
+            if (CurrentRun?.Player == null)
             {
                 return;
             }
 
-            foreach (CardInstance card in CurrentRun.Player.Hand)
-            {
-                card.CurrentCooldown = 0;
-            }
-
-            foreach (CardInstance card in CurrentRun.Player.EquippedQueue)
+            foreach (CardInstance card in GetAllOwnedCards())
             {
                 card.CurrentCooldown = 0;
             }
@@ -467,10 +419,10 @@ namespace RogueCards
             AddCombatLog("All card and Special cooldowns reset to 0!");
         }
 
-        public GameScreen TriggerWaveClearReward(int clearedWaveNumber)
+        private GameScreen TriggerWaveClearReward(int clearedWaveNumber)
         {
-            WaveDefinition wave = database.Waves.FirstOrDefault(w => w.WaveNumber == clearedWaveNumber);
-            RewardType rewardType = wave != null ? wave.RewardAfterClear : RewardType.None;
+            WaveDefinition wave = _database.Waves.FirstOrDefault(w => w.WaveNumber == clearedWaveNumber);
+            RewardType rewardType = wave?.RewardAfterClear ?? RewardType.None;
 
             if (rewardType == RewardType.PickCard)
             {
@@ -513,47 +465,43 @@ namespace RogueCards
         {
             reward.DraftCardIds.Clear();
 
-            List<WeaponDefinition> unlocked = database.WeaponList
-                .Where(w => profile.UnlockedWeaponIds.Contains(w.Id))
+            List<WeaponDefinition> unlocked = _database.WeaponList
+                .Where(w => _profile.UnlockedWeaponIds.Contains(w.Id))
                 .ToList();
 
             List<WeaponDefinition> offensePool = unlocked
-                .Where(w => w.Category == CardCategory.Melee || w.Category == CardCategory.Ranged)
+                .Where(w => w.Category is CardCategory.Melee or CardCategory.Ranged)
                 .ToList();
 
             List<WeaponDefinition> utilityPool = unlocked
-                .Where(w => w.Category == CardCategory.Movement || w.Category == CardCategory.Special)
+                .Where(w => w.Category is CardCategory.Movement or CardCategory.Special)
                 .ToList();
 
             if (offensePool.Count > 0)
             {
-                WeaponDefinition pick1 = offensePool[random.Next(offensePool.Count)];
-                reward.DraftCardIds.Add(pick1.Id);
+                reward.DraftCardIds.Add(offensePool[RandomNumberGenerator.GetInt32(offensePool.Count)].Id);
             }
 
             if (utilityPool.Count > 0)
             {
-                WeaponDefinition pick2 = utilityPool[random.Next(utilityPool.Count)];
-                reward.DraftCardIds.Add(pick2.Id);
+                reward.DraftCardIds.Add(utilityPool[RandomNumberGenerator.GetInt32(utilityPool.Count)].Id);
             }
         }
 
-        private void PopulateUpgradeChoices(PendingRewardState reward)
+        private static void PopulateUpgradeChoices(PendingRewardState reward)
         {
             reward.UpgradeOptions.Clear();
 
-            UpgradeModifierType[] allTypes = new UpgradeModifierType[]
-            {
+            UpgradeModifierType[] allTypes =
+            [
                 UpgradeModifierType.PlusOneDamage,
                 UpgradeModifierType.PlusTwoDamage,
                 UpgradeModifierType.MinusOneCooldown,
                 UpgradeModifierType.MinusTwoCooldown,
                 UpgradeModifierType.PoisonEffect
-            };
+            ];
 
-            List<UpgradeOption> picked = allTypes
-                .OrderBy(_ => random.Next())
-                .Take(3)
+            List<UpgradeOption> picked = PickRandomItems(allTypes, 3)
                 .Select(PersistenceManager.BuildUpgradeOption)
                 .ToList();
 
@@ -562,13 +510,13 @@ namespace RogueCards
 
         public bool PickRewardCard(string weaponId)
         {
-            if (CurrentRun == null || CurrentRun.PendingReward == null || CurrentRun.PendingReward.RewardType != RewardType.PickCard)
+            if (CurrentRun?.PendingReward?.RewardType != RewardType.PickCard)
             {
                 return false;
             }
 
             if (!CurrentRun.PendingReward.DraftCardIds.Contains(weaponId) ||
-                !database.Weapons.TryGetValue(weaponId, out WeaponDefinition weapon))
+                !_database.Weapons.TryGetValue(weaponId, out WeaponDefinition weapon))
             {
                 return false;
             }
@@ -583,7 +531,7 @@ namespace RogueCards
 
         public bool ApplyUpgradeModifierToCard(UpgradeModifierType modifierType, int cardInstanceId)
         {
-            if (CurrentRun == null || CurrentRun.PendingReward == null || CurrentRun.PendingReward.RewardType != RewardType.Upgrade)
+            if (CurrentRun?.PendingReward?.RewardType != RewardType.Upgrade)
             {
                 return false;
             }
@@ -594,35 +542,7 @@ namespace RogueCards
                 return false;
             }
 
-            switch (modifierType)
-            {
-                case UpgradeModifierType.PlusOneDamage:
-                    targetCard.BonusDamage += 1;
-                    targetCard.AppliedModifiers.Add("+1 DMG");
-                    break;
-
-                case UpgradeModifierType.PlusTwoDamage:
-                    targetCard.BonusDamage += 2;
-                    targetCard.AppliedModifiers.Add("+2 DMG");
-                    break;
-
-                case UpgradeModifierType.MinusOneCooldown:
-                    targetCard.CooldownModifier -= 1;
-                    targetCard.AppliedModifiers.Add("-1 CD");
-                    break;
-
-                case UpgradeModifierType.MinusTwoCooldown:
-                    targetCard.CooldownModifier -= 2;
-                    targetCard.AppliedModifiers.Add("-2 CD");
-                    break;
-
-                case UpgradeModifierType.PoisonEffect:
-                    targetCard.HasPoison = true;
-                    targetCard.CooldownModifier += 1;
-                    targetCard.AppliedModifiers.Add("POISON (+1 CD)");
-                    break;
-            }
-
+            ApplyModifierToCard(targetCard, modifierType);
             CurrentRun.PendingReward = null;
             LastActionFeedback = $"Upgraded {targetCard.Definition.Name}!";
             AddCombatLog($"Reward chosen: Applied {modifierType} to {targetCard.Definition.Name}.");
@@ -630,9 +550,37 @@ namespace RogueCards
             return true;
         }
 
+        private static void ApplyModifierToCard(CardInstance targetCard, UpgradeModifierType modifierType)
+        {
+            switch (modifierType)
+            {
+                case UpgradeModifierType.PlusOneDamage:
+                    targetCard.BonusDamage += 1;
+                    targetCard.AppliedModifiers.Add("+1 DMG");
+                    break;
+                case UpgradeModifierType.PlusTwoDamage:
+                    targetCard.BonusDamage += 2;
+                    targetCard.AppliedModifiers.Add("+2 DMG");
+                    break;
+                case UpgradeModifierType.MinusOneCooldown:
+                    targetCard.CooldownModifier -= 1;
+                    targetCard.AppliedModifiers.Add("-1 CD");
+                    break;
+                case UpgradeModifierType.MinusTwoCooldown:
+                    targetCard.CooldownModifier -= 2;
+                    targetCard.AppliedModifiers.Add("-2 CD");
+                    break;
+                case UpgradeModifierType.PoisonEffect:
+                    targetCard.HasPoison = true;
+                    targetCard.CooldownModifier += 1;
+                    targetCard.AppliedModifiers.Add("POISON (+1 CD)");
+                    break;
+            }
+        }
+
         public bool SkipCurrentReward()
         {
-            if (CurrentRun == null || CurrentRun.PendingReward == null)
+            if (CurrentRun?.PendingReward == null)
             {
                 return false;
             }
@@ -647,37 +595,15 @@ namespace RogueCards
 
         public bool TryRerollCurrentReward()
         {
-            if (CurrentRun == null || CurrentRun.PendingReward == null)
+            if (CurrentRun?.PendingReward == null)
             {
                 return false;
             }
 
             PendingRewardState reward = CurrentRun.PendingReward;
-            PlayerState player = CurrentRun.Player;
-
-            if (player.FreeRerollsRemaining > 0)
+            if (!ConsumeRerollCost(reward))
             {
-                player.FreeRerollsRemaining--;
-                CurrentRun.UsedRerollInRun = true;
-                LastActionFeedback = "Used Free Reroll (Charisma)!";
-                AddCombatLog("Used Free Reroll from Charisma upgrade.");
-            }
-            else
-            {
-                int cost = reward.NextRerollCost;
-                if (profile.Coins < cost)
-                {
-                    LastActionFeedback = $"Not enough coins to reroll (requires {cost} Coins).";
-                    return false;
-                }
-
-                profile.Coins -= cost;
-                reward.RerollCount++;
-                reward.NextRerollCost = cost * 2;
-                CurrentRun.UsedRerollInRun = true;
-                persistenceManager.SaveProfile(profile);
-                LastActionFeedback = $"Rerolled reward for {cost} Coins (next reroll: {reward.NextRerollCost} Coins).";
-                AddCombatLog($"Rerolled reward for {cost} Coins.");
+                return false;
             }
 
             if (reward.RewardType == RewardType.PickCard)
@@ -693,12 +619,41 @@ namespace RogueCards
             return true;
         }
 
+        private bool ConsumeRerollCost(PendingRewardState reward)
+        {
+            PlayerState player = CurrentRun.Player;
+            if (player.FreeRerollsRemaining > 0)
+            {
+                player.FreeRerollsRemaining--;
+                CurrentRun.UsedRerollInRun = true;
+                LastActionFeedback = "Used Free Reroll (Charisma)!";
+                AddCombatLog("Used Free Reroll from Charisma upgrade.");
+                return true;
+            }
+
+            int cost = reward.NextRerollCost;
+            if (_profile.Coins < cost)
+            {
+                LastActionFeedback = $"Not enough coins to reroll (requires {cost} Coins).";
+                return false;
+            }
+
+            _profile.Coins -= cost;
+            reward.RerollCount++;
+            reward.NextRerollCost = cost * 2;
+            CurrentRun.UsedRerollInRun = true;
+            _persistenceManager.SaveProfile(_profile);
+            LastActionFeedback = $"Rerolled reward for {cost} Coins (next reroll: {reward.NextRerollCost} Coins).";
+            AddCombatLog($"Rerolled reward for {cost} Coins.");
+            return true;
+        }
+
         private void AdvanceToNextWave()
         {
             CurrentRun.CurrentWave++;
             CurrentRun.TookDamageInCurrentWave = false;
-            enemyAI.SpawnWave(this, CurrentRun.CurrentWave);
-            achievementManager.RecordWaveReached(CurrentRun.CurrentWave);
+            EnemyAi.SpawnWave(this, CurrentRun.CurrentWave);
+            _achievementManager.RecordWaveReached(CurrentRun.CurrentWave);
             SaveCurrentRun();
         }
 
@@ -714,39 +669,43 @@ namespace RogueCards
                 return;
             }
 
-            achievementManager.RecordWaveCleared(CurrentRun.CurrentWave, CurrentRun.TookDamageInCurrentWave);
+            _achievementManager.RecordWaveCleared(CurrentRun.CurrentWave, CurrentRun.TookDamageInCurrentWave);
 
-            int maxWave = database.Waves.Count > 0 ? database.Waves.Max(w => w.WaveNumber) : 10;
+            int maxWave = _database.Waves.Count > 0 ? _database.Waves.Max(w => w.WaveNumber) : 10;
             if (CurrentRun.CurrentWave >= maxWave)
             {
-                CurrentRun.IsVictory = true;
-                CurrentRun.IsGameOver = true;
-                CurrentRun.GameOverReason = "Victory! You defeated the Viking Chief and conquered Level 1!";
-                profile.Area2Unlocked = true;
-                achievementManager.RecordRunWon(CurrentRun.UsedRerollInRun);
-                persistenceManager.SaveProfile(profile);
-                persistenceManager.ClearActiveRunSave();
-                LastActionFeedback = "VICTORY! Viking Chief defeated!";
-                AddCombatLog("VICTORY! Level 1 completed and Area 2 unlocked!");
+                TriggerPlayerVictory();
                 return;
             }
 
-            GameScreen rewardScreen = TriggerWaveClearReward(CurrentRun.CurrentWave);
-            if (rewardScreen == GameScreen.Arena)
+            if (TriggerWaveClearReward(CurrentRun.CurrentWave) == GameScreen.Arena)
             {
                 AddCombatLog($"Wave {CurrentRun.CurrentWave} cleared!");
                 AdvanceToNextWave();
             }
         }
 
+        private void TriggerPlayerVictory()
+        {
+            CurrentRun.IsVictory = true;
+            CurrentRun.IsGameOver = true;
+            CurrentRun.GameOverReason = "Victory! You defeated the Viking Chief and conquered Level 1!";
+            _profile.Area2Unlocked = true;
+            _achievementManager.RecordRunWon(CurrentRun.UsedRerollInRun);
+            _persistenceManager.SaveProfile(_profile);
+            _persistenceManager.ClearActiveRunSave();
+            LastActionFeedback = "VICTORY! Viking Chief defeated!";
+            AddCombatLog("VICTORY! Level 1 completed and Area 2 unlocked!");
+        }
+
         public List<CardInstance> GetAllOwnedCards()
         {
-            List<CardInstance> cards = new List<CardInstance>();
-            if (CurrentRun == null || CurrentRun.Player == null)
+            if (CurrentRun?.Player == null)
             {
-                return cards;
+                return [];
             }
 
+            List<CardInstance> cards = [];
             cards.AddRange(CurrentRun.Player.Hand);
             cards.AddRange(CurrentRun.Player.EquippedQueue);
             return cards;
@@ -763,7 +722,7 @@ namespace RogueCards
             if (actualDamage > 0)
             {
                 enemy.CurrentHp = Math.Max(0, enemy.CurrentHp - actualDamage);
-                achievementManager.RecordDamageDealt(actualDamage);
+                _achievementManager.RecordDamageDealt(actualDamage);
             }
 
             string poisonText = string.Empty;
@@ -777,11 +736,7 @@ namespace RogueCards
 
             if (enemy.CurrentHp <= 0)
             {
-                profile.Coins += enemy.CoinDrop;
-                achievementManager.RecordEnemyDefeated(enemy.Type, enemy.CoinDrop, false);
-                persistenceManager.SaveProfile(profile);
-                AddCombatLog($"{enemy.Name} defeated! (+{enemy.CoinDrop} Coins)");
-                RemoveDefeatedEnemies();
+                HandleEnemyDefeated(enemy, false);
             }
         }
 
@@ -796,19 +751,25 @@ namespace RogueCards
             victim.CurrentHp = Math.Max(0, victim.CurrentHp - actualDamage);
             if (actualDamage > 0)
             {
-                achievementManager.RecordDamageDealt(actualDamage);
+                _achievementManager.RecordDamageDealt(actualDamage);
             }
 
             AddCombatLog($"FRIENDLY FIRE! {attacker.Name}'s {weaponLabel} hit {victim.Name} for {damage} dmg ({victim.CurrentHp}/{victim.MaxHp} HP).");
 
             if (victim.CurrentHp <= 0)
             {
-                profile.Coins += victim.CoinDrop;
-                achievementManager.RecordEnemyDefeated(victim.Type, victim.CoinDrop, true);
-                persistenceManager.SaveProfile(profile);
-                AddCombatLog($"{victim.Name} killed by friendly fire! (+{victim.CoinDrop} Coins)");
-                RemoveDefeatedEnemies();
+                HandleEnemyDefeated(victim, true);
             }
+        }
+
+        private void HandleEnemyDefeated(EnemyInstance enemy, bool isFriendlyFire)
+        {
+            _profile.Coins += enemy.CoinDrop;
+            _achievementManager.RecordEnemyDefeated(enemy.Type, enemy.CoinDrop, isFriendlyFire);
+            _persistenceManager.SaveProfile(_profile);
+            string suffix = isFriendlyFire ? "killed by friendly fire!" : "defeated!";
+            AddCombatLog($"{enemy.Name} {suffix} (+{enemy.CoinDrop} Coins)");
+            CurrentRun.Enemies.RemoveAll(e => e.CurrentHp <= 0);
         }
 
         public void ApplyEnemyAttackToPlayer(EnemyInstance attacker, int damage, string weaponLabel)
@@ -835,9 +796,9 @@ namespace RogueCards
             CurrentRun.IsVictory = false;
             CurrentRun.IsGameOver = true;
             CurrentRun.GameOverReason = reason;
-            isExecutingQueue = false;
-            persistenceManager.SaveProfile(profile);
-            persistenceManager.ClearActiveRunSave();
+            _isExecutingQueue = false;
+            _persistenceManager.SaveProfile(_profile);
+            _persistenceManager.ClearActiveRunSave();
             LastActionFeedback = "DEFEAT! You have fallen in battle.";
             AddCombatLog($"DEFEAT: {reason}");
         }
@@ -859,7 +820,7 @@ namespace RogueCards
                 enemy.State = EnemyState.Armed;
                 enemy.ChargeTurnsRemaining = 0;
                 enemy.LockedTargetTiles.Clear();
-                achievementManager.RecordBearTrapStun();
+                _achievementManager.RecordBearTrapStun();
                 ApplyDamageToEnemy(enemy, trap.Damage, false, "Bear Trap");
                 if (enemy.CurrentHp > 0)
                 {
@@ -867,15 +828,17 @@ namespace RogueCards
                 }
             }
 
-            if (enemy.CurrentHp > 0)
+            if (enemy.CurrentHp <= 0)
             {
-                GroundHazard poison = CurrentRun.Hazards.FirstOrDefault(
-                    h => h.Type == HazardType.Poison && h.Position == enemy.Position);
+                return;
+            }
 
-                if (poison != null)
-                {
-                    ApplyDamageToEnemy(enemy, poison.Damage, false, "Poison Pool");
-                }
+            GroundHazard poison = CurrentRun.Hazards.FirstOrDefault(
+                h => h.Type == HazardType.Poison && h.Position == enemy.Position);
+
+            if (poison != null)
+            {
+                ApplyDamageToEnemy(enemy, poison.Damage, false, "Poison Pool");
             }
         }
 
@@ -885,47 +848,45 @@ namespace RogueCards
             GroundHazard poison = CurrentRun.Hazards.FirstOrDefault(
                 h => h.Type == HazardType.Poison && h.Position == player.Position);
 
-            if (poison != null)
+            if (poison == null)
             {
-                if (player.IsImmuneThisTurn)
-                {
-                    AddCombatLog("Iron Bulwark blocked Poison Pool damage!");
-                    return;
-                }
+                return;
+            }
 
-                player.CurrentHp = Math.Max(0, player.CurrentHp - poison.Damage);
-                CurrentRun.TookDamageInCurrentWave = true;
-                AddCombatLog($"Poison Pool dealt {poison.Damage} dmg ({player.CurrentHp}/{player.MaxHp} HP).");
+            if (player.IsImmuneThisTurn)
+            {
+                AddCombatLog("Iron Bulwark blocked Poison Pool damage!");
+                return;
+            }
 
-                if (player.CurrentHp <= 0)
-                {
-                    TriggerPlayerDefeat($"Succumbed to Poison on Wave {CurrentRun.CurrentWave}.");
-                }
+            player.CurrentHp = Math.Max(0, player.CurrentHp - poison.Damage);
+            CurrentRun.TookDamageInCurrentWave = true;
+            AddCombatLog($"Poison Pool dealt {poison.Damage} dmg ({player.CurrentHp}/{player.MaxHp} HP).");
+
+            if (player.CurrentHp <= 0)
+            {
+                TriggerPlayerDefeat($"Succumbed to Poison on Wave {CurrentRun.CurrentWave}.");
             }
         }
 
-        public CharacterDefinition GetSelectedCharacterDefinition()
+        private CharacterDefinition GetSelectedCharacterDefinition()
         {
-            if (profile != null &&
-                !string.IsNullOrEmpty(profile.SelectedCharacterId) &&
-                database.Characters.TryGetValue(profile.SelectedCharacterId, out CharacterDefinition selected))
+            if (_profile != null &&
+                !string.IsNullOrEmpty(_profile.SelectedCharacterId) &&
+                _database.Characters.TryGetValue(_profile.SelectedCharacterId, out CharacterDefinition selected))
             {
                 return selected;
             }
 
-            if (database.Characters.TryGetValue("viking", out CharacterDefinition viking))
-            {
-                return viking;
-            }
-
-            return database.CharacterList.First();
+            return _database.Characters.TryGetValue("viking", out CharacterDefinition viking)
+                ? viking
+                : _database.CharacterList.First();
         }
 
         public CharacterDefinition GetActiveCharacterDefinition()
         {
-            if (CurrentRun != null &&
-                CurrentRun.Player != null &&
-                database.Characters.TryGetValue(CurrentRun.Player.CharacterId, out CharacterDefinition active))
+            if (CurrentRun?.Player != null &&
+                _database.Characters.TryGetValue(CurrentRun.Player.CharacterId, out CharacterDefinition active))
             {
                 return active;
             }
@@ -933,145 +894,85 @@ namespace RogueCards
             return GetSelectedCharacterDefinition();
         }
 
-        public int GetMaxHpBonus()
-        {
-            return SumUpgradeEffect(PermanentUpgradeEffectType.MaxHp);
-        }
+        public int GetMaxHpBonus() => SumUpgradeEffect(PermanentUpgradeEffectType.MaxHp);
+        public int GetMovementCooldownReduction() => SumUpgradeEffect(PermanentUpgradeEffectType.MovementCooldown);
+        public int GetFreeRerollBonus() => SumUpgradeEffect(PermanentUpgradeEffectType.FreeReroll);
+        public int GetMeleeDamageBonus() => SumUpgradeEffect(PermanentUpgradeEffectType.MeleeDamage);
+        public int GetRangedDamageBonus() => SumUpgradeEffect(PermanentUpgradeEffectType.RangedDamage);
+        public int GetWaitEquippedCooldownBonus() => SumUpgradeEffect(PermanentUpgradeEffectType.WaitEquippedCooldown);
+        public int GetSpecialDamageBonus() => SumUpgradeEffect(PermanentUpgradeEffectType.SpecialDamage);
 
-        public int GetMovementCooldownReduction()
-        {
-            return SumUpgradeEffect(PermanentUpgradeEffectType.MovementCooldown);
-        }
-
-        public int GetFreeRerollBonus()
-        {
-            return SumUpgradeEffect(PermanentUpgradeEffectType.FreeReroll);
-        }
-
-        public int GetMeleeDamageBonus()
-        {
-            return SumUpgradeEffect(PermanentUpgradeEffectType.MeleeDamage);
-        }
-
-        public int GetRangedDamageBonus()
-        {
-            return SumUpgradeEffect(PermanentUpgradeEffectType.RangedDamage);
-        }
-
-        public int GetWaitEquippedCooldownBonus()
-        {
-            return SumUpgradeEffect(PermanentUpgradeEffectType.WaitEquippedCooldown);
-        }
-
-        public int GetSpecialDamageBonus()
-        {
-            return SumUpgradeEffect(PermanentUpgradeEffectType.SpecialDamage);
-        }
-
-        public List<string> GetActiveUpgradeNames()
-        {
-            List<string> names = new List<string>();
-            foreach (PermanentUpgradeDefinition upgrade in database.UpgradeList)
-            {
-                if (profile.UnlockedUpgradeIds.Contains(upgrade.Id))
-                {
-                    names.Add(upgrade.Name);
-                }
-            }
-
-            return names;
-        }
+        public List<string> GetActiveUpgradeNames() =>
+            _database.UpgradeList
+                .Where(u => _profile.UnlockedUpgradeIds.Contains(u.Id))
+                .Select(u => u.Name)
+                .ToList();
 
         public int GetEffectiveCardDamage(CardInstance card)
         {
-            if (card == null || card.Definition == null)
+            if (card?.Definition == null)
             {
                 return 0;
             }
 
-            int permanentBonus = 0;
-            if (card.Definition.Category == CardCategory.Melee)
+            int permanentBonus = card.Definition.Category switch
             {
-                permanentBonus = GetMeleeDamageBonus();
-            }
-            else if (card.Definition.Category == CardCategory.Ranged)
-            {
-                permanentBonus = GetRangedDamageBonus();
-            }
+                CardCategory.Melee => GetMeleeDamageBonus(),
+                CardCategory.Ranged => GetRangedDamageBonus(),
+                _ => 0
+            };
 
             return card.GetEffectiveDamage(permanentBonus);
         }
 
         public int GetEffectiveCardMaxCooldown(CardInstance card)
         {
-            if (card == null || card.Definition == null)
+            if (card?.Definition == null)
             {
                 return 1;
             }
 
-            int permanentReduction = 0;
-            if (card.Definition.Category == CardCategory.Movement)
-            {
-                permanentReduction = GetMovementCooldownReduction();
-            }
+            int permanentReduction = card.Definition.Category == CardCategory.Movement
+                ? GetMovementCooldownReduction()
+                : 0;
 
             return card.GetEffectiveMaxCooldown(permanentReduction);
         }
 
         public List<GridPos> GetValidMoveTiles()
         {
-            List<GridPos> validTiles = new List<GridPos>();
-            if (CurrentRun == null || CurrentRun.Player == null || CurrentRun.IsGameOver || isExecutingQueue)
+            if (!CanTakeArenaAction())
             {
-                return validTiles;
+                return [];
             }
 
             GridPos origin = CurrentRun.Player.Position;
-            GridPos[] candidates = new GridPos[]
-            {
+            GridPos[] candidates =
+            [
                 origin.Offset(0, -1),
                 origin.Offset(0, 1),
                 origin.Offset(-1, 0),
                 origin.Offset(1, 0)
-            };
+            ];
 
-            foreach (GridPos tile in candidates)
-            {
-                if (tile.IsValid(GridSize) && !IsTileOccupiedByEnemy(tile))
-                {
-                    validTiles.Add(tile);
-                }
-            }
-
-            return validTiles;
+            return candidates.Where(tile => tile.IsValid() && !IsTileOccupiedByEnemy(tile)).ToList();
         }
 
         public bool TryMovePlayerToTile(GridPos target)
         {
-            if (CurrentRun == null || CurrentRun.Player == null || CurrentRun.IsGameOver || isExecutingQueue)
+            if (!CanTakeArenaAction())
             {
                 return false;
             }
 
             int dx = target.X - CurrentRun.Player.Position.X;
             int dy = target.Y - CurrentRun.Player.Position.Y;
-
-            if (Math.Abs(dx) + Math.Abs(dy) != 1)
-            {
-                return false;
-            }
-
-            return TryMovePlayer(dx, dy);
+            return Math.Abs(dx) + Math.Abs(dy) == 1 && TryMovePlayer(dx, dy);
         }
 
         public bool TryMovePlayer(int dx, int dy)
         {
-            if (CurrentRun == null || CurrentRun.Player == null || CurrentRun.IsGameOver || isExecutingQueue)
-            {
-                return false;
-            }
-
-            if (Math.Abs(dx) + Math.Abs(dy) != 1)
+            if (!CanTakeArenaAction() || Math.Abs(dx) + Math.Abs(dy) != 1)
             {
                 return false;
             }
@@ -1079,7 +980,7 @@ namespace RogueCards
             GridPos oldPosition = CurrentRun.Player.Position;
             GridPos target = oldPosition.Offset(dx, dy);
 
-            if (!target.IsValid(GridSize))
+            if (!target.IsValid())
             {
                 LastActionFeedback = "Cannot move outside the 5x5 arena.";
                 return false;
@@ -1110,7 +1011,7 @@ namespace RogueCards
 
         public bool WaitTurn()
         {
-            if (CurrentRun == null || CurrentRun.Player == null || CurrentRun.IsGameOver || isExecutingQueue)
+            if (!CanTakeArenaAction())
             {
                 return false;
             }
@@ -1135,7 +1036,7 @@ namespace RogueCards
 
         public bool TryUseSpecial()
         {
-            if (CurrentRun == null || CurrentRun.Player == null || CurrentRun.IsGameOver || isExecutingQueue)
+            if (!CanTakeArenaAction())
             {
                 return false;
             }
@@ -1175,13 +1076,11 @@ namespace RogueCards
 
             foreach (EnemyInstance enemy in adjacentEnemies)
             {
-                int pushDx = Math.Sign(enemy.Position.X - player.Position.X);
-                int pushDy = Math.Sign(enemy.Position.Y - player.Position.Y);
-                GridPos pushTarget = enemy.Position.Offset(pushDx, pushDy);
+                GridPos pushTarget = enemy.Position.Offset(
+                    Math.Sign(enemy.Position.X - player.Position.X),
+                    Math.Sign(enemy.Position.Y - player.Position.Y));
 
-                if (pushTarget.IsValid(GridSize) &&
-                    pushTarget != player.Position &&
-                    !IsTileOccupiedByEnemy(pushTarget))
+                if (pushTarget.IsValid() && pushTarget != player.Position && !IsTileOccupiedByEnemy(pushTarget))
                 {
                     enemy.Position = pushTarget;
                     pushedCount++;
@@ -1210,30 +1109,8 @@ namespace RogueCards
         private void ExecuteIronBulwark(PlayerState player, CharacterDefinition hero, int specialDamage)
         {
             player.IsImmuneThisTurn = true;
-
-            int reducedCards = 0;
-            foreach (CardInstance card in GetAllOwnedCards())
-            {
-                if (card.CurrentCooldown > 0)
-                {
-                    card.CurrentCooldown = Math.Max(0, card.CurrentCooldown - 1);
-                    reducedCards++;
-                }
-            }
-
-            int damagedCount = 0;
-            if (specialDamage > 0)
-            {
-                List<EnemyInstance> orthogonalEnemies = CurrentRun.Enemies
-                    .Where(e => e.CurrentHp > 0 && e.Position.ManhattanDistance(player.Position) == 1)
-                    .ToList();
-
-                foreach (EnemyInstance enemy in orthogonalEnemies)
-                {
-                    ApplyDamageToEnemy(enemy, specialDamage, false, hero.SpecialName);
-                    damagedCount++;
-                }
-            }
+            int reducedCards = ReduceAllOwnedCardCooldowns(1);
+            int damagedCount = ApplyShieldmaidenSpecialDamage(player, hero, specialDamage);
 
             LastSpecialEffectType = "IronBulwark";
             LastSpecialOrigin = player.Position;
@@ -1247,56 +1124,84 @@ namespace RogueCards
             AddCombatLog($"Turn {CurrentRun.TurnNumber}: {hero.Name} used {hero.SpecialName}! Immune this turn; cooldowns -1.{damagePart}");
         }
 
+        private int ReduceAllOwnedCardCooldowns(int amount)
+        {
+            int reduced = 0;
+            foreach (CardInstance card in GetAllOwnedCards().Where(c => c.CurrentCooldown > 0))
+            {
+                card.CurrentCooldown = Math.Max(0, card.CurrentCooldown - amount);
+                reduced++;
+            }
+
+            return reduced;
+        }
+
+        private int ApplyShieldmaidenSpecialDamage(PlayerState player, CharacterDefinition hero, int specialDamage)
+        {
+            if (specialDamage <= 0)
+            {
+                return 0;
+            }
+
+            List<EnemyInstance> orthogonalEnemies = CurrentRun.Enemies
+                .Where(e => e.CurrentHp > 0 && e.Position.ManhattanDistance(player.Position) == 1)
+                .ToList();
+
+            foreach (EnemyInstance enemy in orthogonalEnemies)
+            {
+                ApplyDamageToEnemy(enemy, specialDamage, false, hero.SpecialName);
+            }
+
+            return orthogonalEnemies.Count;
+        }
+
         private void EndPlayerTurn(bool usedWait, bool usedSpecial)
         {
-            achievementManager.RecordTurnTaken();
+            _achievementManager.RecordTurnTaken();
+            TickPlayerCooldowns(usedWait, usedSpecial);
+            TickPoisonAndHazards();
 
+            if (!CurrentRun.IsGameOver && CurrentRun.Enemies.Any(e => e.CurrentHp > 0))
+            {
+                EnemyAi.ExecuteEnemyTurns(this);
+            }
+
+            CurrentRun.Player.IsImmuneThisTurn = false;
+
+            if (CurrentRun.IsGameOver)
+            {
+                return;
+            }
+
+            CurrentRun.TurnNumber++;
+            CheckWaveClearOrVictory();
+            if (!CurrentRun.IsGameOver)
+            {
+                SaveCurrentRun();
+            }
+        }
+
+        private void TickPlayerCooldowns(bool usedWait, bool usedSpecial)
+        {
             PlayerState player = CurrentRun.Player;
-            int extraReduction = usedWait ? GetWaitEquippedCooldownBonus() : 0;
+            int reduction = 1 + (usedWait ? GetWaitEquippedCooldownBonus() : 0);
 
             foreach (CardInstance card in player.Hand)
             {
-                if (cardsPlayedThisTurn.Contains(card.InstanceId))
+                if (!_cardsPlayedThisTurn.Contains(card.InstanceId) && card.CurrentCooldown > 0)
                 {
-                    continue;
-                }
-
-                if (card.CurrentCooldown > 0)
-                {
-                    card.CurrentCooldown = Math.Max(0, card.CurrentCooldown - 1 - extraReduction);
+                    card.CurrentCooldown = Math.Max(0, card.CurrentCooldown - reduction);
                 }
             }
 
-            foreach (CardInstance card in player.EquippedQueue)
+            foreach (CardInstance card in player.EquippedQueue.Where(c => c.CurrentCooldown > 0))
             {
-                if (card.CurrentCooldown > 0)
-                {
-                    card.CurrentCooldown = Math.Max(0, card.CurrentCooldown - 1 - extraReduction);
-                }
+                card.CurrentCooldown = Math.Max(0, card.CurrentCooldown - reduction);
             }
 
             if (!usedSpecial && player.SpecialCooldown > 0)
             {
                 player.SpecialCooldown--;
-            }
-
-            TickPoisonAndHazards();
-
-            if (!CurrentRun.IsGameOver && CurrentRun.Enemies.Any(e => e.CurrentHp > 0))
-            {
-                enemyAI.ExecuteEnemyTurns(this);
-            }
-
-            player.IsImmuneThisTurn = false;
-
-            if (!CurrentRun.IsGameOver)
-            {
-                CurrentRun.TurnNumber++;
-                CheckWaveClearOrVictory();
-                if (!CurrentRun.IsGameOver)
-                {
-                    SaveCurrentRun();
-                }
             }
         }
 
@@ -1315,20 +1220,16 @@ namespace RogueCards
             for (int i = CurrentRun.Hazards.Count - 1; i >= 0; i--)
             {
                 GroundHazard hazard = CurrentRun.Hazards[i];
-                if (hazard.RemainingTurns > 0)
+                if (hazard.RemainingTurns > 0 && --hazard.RemainingTurns == 0)
                 {
-                    hazard.RemainingTurns--;
-                    if (hazard.RemainingTurns == 0)
-                    {
-                        CurrentRun.Hazards.RemoveAt(i);
-                    }
+                    CurrentRun.Hazards.RemoveAt(i);
                 }
             }
         }
 
-        public CardInstance CreateCardInstance(WeaponDefinition definition)
+        private CardInstance CreateCardInstance(WeaponDefinition definition)
         {
-            CardInstance card = new CardInstance
+            CardInstance card = new()
             {
                 InstanceId = CurrentRun.NextCardInstanceId,
                 DefinitionId = definition.Id,
@@ -1343,29 +1244,16 @@ namespace RogueCards
             return card;
         }
 
-        private int SumUpgradeEffect(PermanentUpgradeEffectType effectType)
-        {
-            int sum = 0;
-            foreach (PermanentUpgradeDefinition upgrade in database.UpgradeList)
-            {
-                if (upgrade.EffectType == effectType && profile.UnlockedUpgradeIds.Contains(upgrade.Id))
-                {
-                    sum += upgrade.EffectValue;
-                }
-            }
+        private bool CanTakeArenaAction() =>
+            CurrentRun?.Player != null && !CurrentRun.IsGameOver && !_isExecutingQueue;
 
-            return sum;
-        }
+        private int SumUpgradeEffect(PermanentUpgradeEffectType effectType) =>
+            _database.UpgradeList
+                .Where(u => u.EffectType == effectType && _profile.UnlockedUpgradeIds.Contains(u.Id))
+                .Sum(u => u.EffectValue);
 
-        private bool IsTileOccupiedByEnemy(GridPos pos)
-        {
-            return CurrentRun.Enemies.Any(e => e.CurrentHp > 0 && e.Position == pos);
-        }
-
-        private void RemoveDefeatedEnemies()
-        {
-            CurrentRun.Enemies.RemoveAll(e => e.CurrentHp <= 0);
-        }
+        private bool IsTileOccupiedByEnemy(GridPos pos) =>
+            CurrentRun.Enemies.Any(e => e.CurrentHp > 0 && e.Position == pos);
 
         public void ArmBearTrapAt(GridPos pos)
         {
@@ -1392,32 +1280,28 @@ namespace RogueCards
                 CurrentRun.RecentLogEntries.RemoveAt(0);
             }
 
-            persistenceManager.AppendCombatLogLine(CurrentRun.CombatLogFilePath, entry);
+            PersistenceManager.AppendCombatLogLine(CurrentRun.CombatLogFilePath, entry);
         }
 
-        private static string GetDirectionName(int dx, int dy)
+        private static List<T> PickRandomItems<T>(IEnumerable<T> source, int count)
         {
-            if (dx == 0 && dy == -1)
+            List<T> pool = source.ToList();
+            for (int i = pool.Count - 1; i > 0; i--)
             {
-                return "Up";
+                int j = RandomNumberGenerator.GetInt32(i + 1);
+                (pool[i], pool[j]) = (pool[j], pool[i]);
             }
 
-            if (dx == 0 && dy == 1)
-            {
-                return "Down";
-            }
-
-            if (dx == -1 && dy == 0)
-            {
-                return "Left";
-            }
-
-            if (dx == 1 && dy == 0)
-            {
-                return "Right";
-            }
-
-            return "Unknown";
+            return pool.Take(count).ToList();
         }
+
+        private static string GetDirectionName(int dx, int dy) => (dx, dy) switch
+        {
+            (0, -1) => "Up",
+            (0, 1) => "Down",
+            (-1, 0) => "Left",
+            (1, 0) => "Right",
+            _ => "Unknown"
+        };
     }
 }

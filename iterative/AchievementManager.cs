@@ -1,21 +1,18 @@
 ﻿#nullable disable
-using System;
-using System.Collections.Generic;
+using System.Diagnostics;
 using System.Globalization;
-using System.IO;
-using System.Linq;
 
 namespace RogueCards
 {
     public class AchievementManager
     {
-        private readonly DataRepository dataRepository;
-        private readonly GameDatabase database;
-        private readonly PlayerProfile profile;
-        private readonly PersistenceManager persistenceManager;
-        private readonly Queue<AchievementToast> toastQueue = new Queue<AchievementToast>();
+        private readonly DataRepository _dataRepository;
+        private readonly GameDatabase _database;
+        private readonly PlayerProfile _profile;
+        private readonly PersistenceManager _persistenceManager;
+        private readonly Queue<AchievementToast> _toastQueue = new();
+        private readonly string _statsFilePath;
 
-        public string StatsFilePath { get; }
         public GameStatistics Stats { get; private set; }
         public AchievementToast ActiveToast { get; private set; }
 
@@ -25,11 +22,11 @@ namespace RogueCards
             PlayerProfile profile,
             PersistenceManager persistenceManager)
         {
-            this.dataRepository = dataRepository;
-            this.database = database;
-            this.profile = profile;
-            this.persistenceManager = persistenceManager;
-            StatsFilePath = Path.Combine(dataRepository.SavesDirectory, "stats.txt");
+            _dataRepository = dataRepository;
+            _database = database;
+            _profile = profile;
+            _persistenceManager = persistenceManager;
+            _statsFilePath = Path.Combine(dataRepository.SavesDirectory, "stats.txt");
 
             LoadStatistics();
             EnsureEnemyTypeKeys();
@@ -47,9 +44,9 @@ namespace RogueCards
                 }
             }
 
-            if (ActiveToast == null && toastQueue.Count > 0)
+            if (ActiveToast == null && _toastQueue.Count > 0)
             {
-                ActiveToast = toastQueue.Dequeue();
+                ActiveToast = _toastQueue.Dequeue();
             }
         }
 
@@ -101,12 +98,7 @@ namespace RogueCards
             Stats.TotalCardsPlayed++;
             if (!string.IsNullOrWhiteSpace(weaponName))
             {
-                if (!Stats.WeaponUseCounts.ContainsKey(weaponName))
-                {
-                    Stats.WeaponUseCounts[weaponName] = 0;
-                }
-
-                Stats.WeaponUseCounts[weaponName]++;
+                Stats.WeaponUseCounts[weaponName] = Stats.WeaponUseCounts.GetValueOrDefault(weaponName) + 1;
             }
 
             SaveStatistics();
@@ -114,12 +106,10 @@ namespace RogueCards
 
         public void RecordCardsPlayedInSingleTurn(int count)
         {
-            if (count <= 0)
+            if (count > 0)
             {
-                return;
+                UpdateMaxProgress("combo_striker", count);
             }
-
-            UpdateMaxProgress("combo_striker", count);
         }
 
         public void RecordBearTrapStun()
@@ -132,13 +122,7 @@ namespace RogueCards
         public void RecordEnemyDefeated(EnemyType enemyType, int coinReward, bool isFriendlyFire)
         {
             Stats.TotalEnemiesDefeated++;
-
-            if (!Stats.EnemiesDefeatedByType.ContainsKey(enemyType))
-            {
-                Stats.EnemiesDefeatedByType[enemyType] = 0;
-            }
-
-            Stats.EnemiesDefeatedByType[enemyType]++;
+            Stats.EnemiesDefeatedByType[enemyType] = Stats.EnemiesDefeatedByType.GetValueOrDefault(enemyType) + 1;
 
             if (coinReward > 0)
             {
@@ -152,7 +136,6 @@ namespace RogueCards
             }
 
             SaveStatistics();
-
             UpdateMaxProgress("first_blood", Stats.TotalEnemiesDefeated);
             UpdateMaxProgress("veteran_slayer", Stats.TotalEnemiesDefeated);
 
@@ -205,29 +188,18 @@ namespace RogueCards
 
         public void EvaluateWellEquipped()
         {
-            int purchasedWeapons = database.WeaponList.Count(
-                w => !w.UnlockedByDefault && profile.UnlockedWeaponIds.Contains(w.Id));
+            int purchasedWeapons = _database.WeaponList.Count(
+                w => !w.UnlockedByDefault && _profile.UnlockedWeaponIds.Contains(w.Id));
 
-            int purchasedUpgrades = profile.UnlockedUpgradeIds.Count;
-            int totalMenuUnlocks = purchasedWeapons + purchasedUpgrades;
-
+            int totalMenuUnlocks = purchasedWeapons + _profile.UnlockedUpgradeIds.Count;
             UpdateMaxProgress("well_equipped", totalMenuUnlocks);
         }
 
-        public int GetAchievementProgress(string achievementId)
-        {
-            if (profile.AchievementProgress.TryGetValue(achievementId, out int val))
-            {
-                return val;
-            }
+        public int GetAchievementProgress(string achievementId) =>
+            _profile.AchievementProgress.GetValueOrDefault(achievementId);
 
-            return 0;
-        }
-
-        public bool IsAchievementUnlocked(string achievementId)
-        {
-            return profile.CompletedAchievementIds.Contains(achievementId);
-        }
+        public bool IsAchievementUnlocked(string achievementId) =>
+            _profile.CompletedAchievementIds.Contains(achievementId);
 
         private void SyncAchievementProgressFromStats()
         {
@@ -241,18 +213,17 @@ namespace RogueCards
 
         private void UpdateMaxProgress(string achievementId, int value)
         {
-            if (!database.Achievements.TryGetValue(achievementId, out AchievementDefinition def))
+            if (!_database.Achievements.TryGetValue(achievementId, out AchievementDefinition def))
             {
                 return;
             }
 
             int current = GetAchievementProgress(achievementId);
             int clampedNew = Math.Min(def.TargetValue, Math.Max(current, value));
+            bool changed = clampedNew != current;
+            _profile.AchievementProgress[achievementId] = clampedNew;
 
-            bool changed = (clampedNew != current);
-            profile.AchievementProgress[achievementId] = clampedNew;
-
-            if (!profile.CompletedAchievementIds.Contains(achievementId) && clampedNew >= def.TargetValue)
+            if (!_profile.CompletedAchievementIds.Contains(achievementId) && clampedNew >= def.TargetValue)
             {
                 UnlockAchievement(def);
                 return;
@@ -260,33 +231,33 @@ namespace RogueCards
 
             if (changed)
             {
-                persistenceManager.SaveProfile(profile);
+                _persistenceManager.SaveProfile(_profile);
             }
         }
 
         private void UnlockAchievement(AchievementDefinition def)
         {
-            profile.CompletedAchievementIds.Add(def.Id);
-            profile.AchievementProgress[def.Id] = def.TargetValue;
+            _profile.CompletedAchievementIds.Add(def.Id);
+            _profile.AchievementProgress[def.Id] = def.TargetValue;
 
             if (def.CoinReward > 0)
             {
-                profile.Coins += def.CoinReward;
+                _profile.Coins += def.CoinReward;
                 Stats.TotalCoinsEarned += def.CoinReward;
             }
 
             string unlockExtra = string.Empty;
             if (!string.IsNullOrEmpty(def.UnlockCharacterId) &&
-                database.Characters.TryGetValue(def.UnlockCharacterId, out CharacterDefinition unlockedChar))
+                _database.Characters.TryGetValue(def.UnlockCharacterId, out CharacterDefinition unlockedChar))
             {
-                profile.UnlockedCharacterIds.Add(unlockedChar.Id);
+                _profile.UnlockedCharacterIds.Add(unlockedChar.Id);
                 unlockExtra = $" | Unlocked Hero: {unlockedChar.Name}!";
             }
 
-            persistenceManager.SaveProfile(profile);
+            _persistenceManager.SaveProfile(_profile);
             SaveStatistics();
 
-            toastQueue.Enqueue(new AchievementToast
+            _toastQueue.Enqueue(new AchievementToast
             {
                 Title = $"ACHIEVEMENT UNLOCKED: {def.Title}",
                 Subtitle = $"+{def.CoinReward} Coins{unlockExtra}",
@@ -296,12 +267,9 @@ namespace RogueCards
 
         private void EnsureEnemyTypeKeys()
         {
-            foreach (EnemyType enemyType in Enum.GetValues(typeof(EnemyType)))
+            foreach (EnemyType enemyType in Enum.GetValues<EnemyType>())
             {
-                if (!Stats.EnemiesDefeatedByType.ContainsKey(enemyType))
-                {
-                    Stats.EnemiesDefeatedByType[enemyType] = 0;
-                }
+                Stats.EnemiesDefeatedByType.TryAdd(enemyType, 0);
             }
         }
 
@@ -310,7 +278,7 @@ namespace RogueCards
             Stats = new GameStatistics();
             EnsureEnemyTypeKeys();
 
-            if (!File.Exists(StatsFilePath))
+            if (!File.Exists(_statsFilePath))
             {
                 SaveStatistics();
                 return;
@@ -318,11 +286,10 @@ namespace RogueCards
 
             try
             {
-                string[] lines = File.ReadAllLines(StatsFilePath);
-                foreach (string raw in lines)
+                foreach (string raw in File.ReadAllLines(_statsFilePath))
                 {
                     string line = raw.Trim();
-                    if (string.IsNullOrEmpty(line) || line.StartsWith("#"))
+                    if (string.IsNullOrEmpty(line) || line.StartsWith('#'))
                     {
                         continue;
                     }
@@ -333,83 +300,81 @@ namespace RogueCards
                         continue;
                     }
 
-                    string key = line.Substring(0, sep).Trim();
-                    string value = line.Substring(sep + 1).Trim();
-
-                    if (key == "TotalRunsPlayed" && TryParseNonNegative(value, out int runs))
-                    {
-                        Stats.TotalRunsPlayed = runs;
-                    }
-                    else if (key == "RunsWon" && TryParseNonNegative(value, out int won))
-                    {
-                        Stats.RunsWon = won;
-                    }
-                    else if (key == "HighestWaveReached" && TryParseNonNegative(value, out int highWave))
-                    {
-                        Stats.HighestWaveReached = highWave;
-                    }
-                    else if (key == "TotalTurnsTaken" && TryParseNonNegative(value, out int turns))
-                    {
-                        Stats.TotalTurnsTaken = turns;
-                    }
-                    else if (key == "TotalEnemiesDefeated" && TryParseNonNegative(value, out int kills))
-                    {
-                        Stats.TotalEnemiesDefeated = kills;
-                    }
-                    else if (key == "TotalFriendlyFireKills" && TryParseNonNegative(value, out int ff))
-                    {
-                        Stats.TotalFriendlyFireKills = ff;
-                    }
-                    else if (key == "TotalDamageDealt" && TryParseNonNegative(value, out int dmg))
-                    {
-                        Stats.TotalDamageDealt = dmg;
-                    }
-                    else if (key == "TotalCoinsEarned" && TryParseNonNegative(value, out int coins))
-                    {
-                        Stats.TotalCoinsEarned = coins;
-                    }
-                    else if (key == "TotalCardsPlayed" && TryParseNonNegative(value, out int cards))
-                    {
-                        Stats.TotalCardsPlayed = cards;
-                    }
-                    else if (key == "BearTrapStunsTriggered" && TryParseNonNegative(value, out int traps))
-                    {
-                        Stats.BearTrapStunsTriggered = traps;
-                    }
-                    else if (key == "EnemiesByType")
-                    {
-                        ParseEnemyCounts(value);
-                    }
-                    else if (key == "WeaponUseCounts")
-                    {
-                        ParseWeaponCounts(value);
-                    }
+                    ApplyStatEntry(line.Substring(0, sep).Trim(), line.Substring(sep + 1).Trim());
                 }
             }
-            catch
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
+                Debug.WriteLine($"Failed to load statistics: {ex.Message}");
                 Stats = new GameStatistics();
                 EnsureEnemyTypeKeys();
                 SaveStatistics();
             }
         }
 
-        public void SaveStatistics()
+        private void ApplyStatEntry(string key, string value)
+        {
+            switch (key)
+            {
+                case "TotalRunsPlayed" when TryParseNonNegative(value, out int runs):
+                    Stats.TotalRunsPlayed = runs;
+                    break;
+                case "RunsWon" when TryParseNonNegative(value, out int won):
+                    Stats.RunsWon = won;
+                    break;
+                case "HighestWaveReached" when TryParseNonNegative(value, out int highWave):
+                    Stats.HighestWaveReached = highWave;
+                    break;
+                case "TotalTurnsTaken" when TryParseNonNegative(value, out int turns):
+                    Stats.TotalTurnsTaken = turns;
+                    break;
+                case "TotalEnemiesDefeated" when TryParseNonNegative(value, out int kills):
+                    Stats.TotalEnemiesDefeated = kills;
+                    break;
+                case "TotalFriendlyFireKills" when TryParseNonNegative(value, out int ff):
+                    Stats.TotalFriendlyFireKills = ff;
+                    break;
+                case "TotalDamageDealt" when TryParseNonNegative(value, out int dmg):
+                    Stats.TotalDamageDealt = dmg;
+                    break;
+                case "TotalCoinsEarned" when TryParseNonNegative(value, out int coins):
+                    Stats.TotalCoinsEarned = coins;
+                    break;
+                case "TotalCardsPlayed" when TryParseNonNegative(value, out int cards):
+                    Stats.TotalCardsPlayed = cards;
+                    break;
+                case "BearTrapStunsTriggered" when TryParseNonNegative(value, out int traps):
+                    Stats.BearTrapStunsTriggered = traps;
+                    break;
+                case "EnemiesByType":
+                    ParseEnemyCounts(value);
+                    break;
+                case "WeaponUseCounts":
+                    ParseWeaponCounts(value);
+                    break;
+            }
+        }
+
+        private void SaveStatistics()
         {
             try
             {
-                Directory.CreateDirectory(dataRepository.SavesDirectory);
+                Directory.CreateDirectory(_dataRepository.SavesDirectory);
 
                 string enemiesByType = string.Join(
                     ",",
-                    Stats.EnemiesDefeatedByType.OrderBy(kv => (int)kv.Key).Select(kv => $"{kv.Key}:{kv.Value.ToString(CultureInfo.InvariantCulture)}"));
+                    Stats.EnemiesDefeatedByType
+                        .OrderBy(kv => (int)kv.Key)
+                        .Select(kv => $"{kv.Key}:{kv.Value.ToString(CultureInfo.InvariantCulture)}"));
 
                 string weaponCounts = string.Join(
                     ";",
-                    Stats.WeaponUseCounts.OrderBy(kv => kv.Key).Select(kv => $"{kv.Key.Replace(";", " ").Replace(":", " ")}:{kv.Value.ToString(CultureInfo.InvariantCulture)}"));
+                    Stats.WeaponUseCounts
+                        .OrderBy(kv => kv.Key)
+                        .Select(kv => $"{kv.Key.Replace(";", " ").Replace(":", " ")}:{kv.Value.ToString(CultureInfo.InvariantCulture)}"));
 
-                List<string> lines = new List<string>
-                {
+                List<string> lines =
+                [
                     "# Rogue Cards - Persistent Lifetime Statistics",
                     $"TotalRunsPlayed={Stats.TotalRunsPlayed.ToString(CultureInfo.InvariantCulture)}",
                     $"RunsWon={Stats.RunsWon.ToString(CultureInfo.InvariantCulture)}",
@@ -423,12 +388,13 @@ namespace RogueCards
                     $"BearTrapStunsTriggered={Stats.BearTrapStunsTriggered.ToString(CultureInfo.InvariantCulture)}",
                     $"EnemiesByType={enemiesByType}",
                     $"WeaponUseCounts={weaponCounts}"
-                };
+                ];
 
-                File.WriteAllLines(StatsFilePath, lines);
+                File.WriteAllLines(_statsFilePath, lines);
             }
-            catch
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
+                Debug.WriteLine($"Failed to save statistics: {ex.Message}");
             }
         }
 

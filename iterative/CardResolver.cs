@@ -1,36 +1,27 @@
 ﻿#nullable disable
-using System;
-using System.Collections.Generic;
-using System.Linq;
 
 namespace RogueCards
 {
     public class AimPreviewResult
     {
-        public GridPos Direction { get; set; }
-        public List<GridPos> AffectedTiles { get; set; } = new List<GridPos>();
-        public List<GridPos> HitEnemyTiles { get; set; } = new List<GridPos>();
+        public List<GridPos> AffectedTiles { get; } = [];
+        public List<GridPos> HitEnemyTiles { get; } = [];
         public GridPos? MoveDestination { get; set; }
         public bool IsMovement { get; set; }
         public bool IsValidAim { get; set; }
     }
 
-    public class CardResolver
+    public static class CardResolver
     {
         private const int GridSize = GameEngine.GridSize;
 
-        public AimPreviewResult ComputeAimPreview(
+        public static AimPreviewResult ComputeAimPreview(
             ActiveRunState run,
             CardInstance card,
             GridPos direction)
         {
-            AimPreviewResult result = new AimPreviewResult
-            {
-                Direction = direction,
-                IsValidAim = false
-            };
-
-            if (run == null || run.Player == null || card == null || card.Definition == null)
+            AimPreviewResult result = new() { IsValidAim = false };
+            if (run?.Player == null || card?.Definition == null)
             {
                 return result;
             }
@@ -45,125 +36,106 @@ namespace RogueCards
                 return result;
             }
 
-            if (def.Targeting == TargetingType.Orthogonal && !IsOrthogonalDirection(direction))
-            {
-                return result;
-            }
-
-            if (def.Targeting == TargetingType.Diagonal && !IsDiagonalDirection(direction))
+            if (!IsDirectionValidForTargeting(def.Targeting, direction))
             {
                 return result;
             }
 
             result.IsValidAim = true;
             result.IsMovement = def.Category == CardCategory.Movement;
+            PopulatePreviewByEffect(run, result, def, origin, direction);
+            return result;
+        }
 
+        private static void PopulatePreviewByEffect(
+            ActiveRunState run,
+            AimPreviewResult result,
+            WeaponDefinition def,
+            GridPos origin,
+            GridPos direction)
+        {
+            int lineRange = def.Range > 0 ? def.Range : GridSize;
             switch (def.Effect)
             {
                 case WeaponEffectType.SingleAdjacent:
                 case WeaponEffectType.KnockbackAdjacent:
                     AddTileIfValid(run, result, origin.Offset(direction.X, direction.Y));
                     break;
-
                 case WeaponEffectType.ArcSweep:
-                    GridPos[] arcTiles = GetArcSweepTiles(origin, direction);
-                    foreach (GridPos tile in arcTiles)
+                    foreach (GridPos tile in GetArcSweepTiles(origin, direction))
                     {
                         AddTileIfValid(run, result, tile);
                     }
-                    break;
 
+                    break;
                 case WeaponEffectType.LineProjectile:
                 case WeaponEffectType.DiagonalProjectile:
-                    TraceLinePreview(run, result, origin, direction, GridSize, 1);
+                    TraceLinePreview(run, result, origin, direction, lineRange, 1);
                     break;
-
                 case WeaponEffectType.PierceTwoLine:
-                    TraceLinePreview(run, result, origin, direction, GridSize, 2);
+                    TraceLinePreview(run, result, origin, direction, lineRange, 2);
                     break;
-
                 case WeaponEffectType.HarpoonPull:
-                    TraceLinePreview(run, result, origin, direction, 3, 1);
+                    TraceLinePreview(run, result, origin, direction, def.Range > 0 ? def.Range : 3, 1);
                     break;
-
                 case WeaponEffectType.DiagonalDash:
                     ComputeDiagonalDashPreview(run, result, origin, direction);
                     break;
-
                 case WeaponEffectType.SlideTwo:
-                    ComputeSlidePreview(run, result, origin, direction);
+                    ComputeSlidePreview(run, result, origin, direction, def.Range > 0 ? def.Range : 2);
                     break;
-
                 case WeaponEffectType.PlaceBearTrap:
                     result.AffectedTiles.Add(origin);
                     break;
             }
-
-            return result;
         }
 
-        public bool ResolveCard(
-            GameEngine engine,
-            CardInstance card,
-            GridPos direction)
+        public static bool ResolveCard(GameEngine engine, CardInstance card, GridPos direction)
         {
-            if (engine == null || engine.CurrentRun == null || card == null || card.Definition == null)
+            if (engine?.CurrentRun == null || card?.Definition == null)
             {
                 return false;
             }
 
-            ActiveRunState run = engine.CurrentRun;
             WeaponDefinition def = card.Definition;
+            if (!IsDirectionValidForTargeting(def.Targeting, direction))
+            {
+                return false;
+            }
+
             int damage = engine.GetEffectiveCardDamage(card);
-            GridPos origin = run.Player.Position;
-
-            if (def.Targeting == TargetingType.Orthogonal && !IsOrthogonalDirection(direction))
-            {
-                return false;
-            }
-
-            if (def.Targeting == TargetingType.Diagonal && !IsDiagonalDirection(direction))
-            {
-                return false;
-            }
+            GridPos origin = engine.CurrentRun.Player.Position;
+            int lineRange = def.Range > 0 ? def.Range : GridSize;
 
             switch (def.Effect)
             {
                 case WeaponEffectType.SingleAdjacent:
                     ResolveSingleAdjacent(engine, card, origin, direction, damage);
                     break;
-
                 case WeaponEffectType.KnockbackAdjacent:
                     ResolveKnockbackAdjacent(engine, card, origin, direction, damage);
                     break;
-
                 case WeaponEffectType.ArcSweep:
                     ResolveArcSweep(engine, card, origin, direction, damage);
                     break;
-
                 case WeaponEffectType.LineProjectile:
                 case WeaponEffectType.DiagonalProjectile:
-                    ResolveLineProjectile(engine, card, origin, direction, damage, GridSize, 1);
+                    ResolveLineProjectile(engine, card, origin, direction, damage, lineRange, 1);
                     break;
-
                 case WeaponEffectType.PierceTwoLine:
-                    ResolveLineProjectile(engine, card, origin, direction, damage, GridSize, 2);
+                    ResolveLineProjectile(engine, card, origin, direction, damage, lineRange, 2);
                     break;
-
                 case WeaponEffectType.PlaceBearTrap:
-                    ResolvePlaceBearTrap(engine, card, origin, damage);
+                    ResolvePlaceBearTrap(engine, origin, damage);
                     break;
-
                 case WeaponEffectType.HarpoonPull:
-                    ResolveHarpoonPull(engine, card, origin, direction, damage);
+                    ResolveHarpoonPull(engine, card, origin, direction, damage, def.Range > 0 ? def.Range : 3);
                     break;
-
                 case WeaponEffectType.DiagonalDash:
                     ResolveDiagonalDash(engine, card, origin, direction);
                     break;
-
                 case WeaponEffectType.SlideTwo:
-                    ResolveSlideTwo(engine, card, origin, direction);
+                    ResolveSlideTwo(engine, card, origin, direction, def.Range > 0 ? def.Range : 2);
                     break;
             }
 
@@ -187,25 +159,14 @@ namespace RogueCards
 
             if (targeting == TargetingType.Orthogonal)
             {
-                if (Math.Abs(dx) >= Math.Abs(dy))
-                {
-                    direction = new GridPos(Math.Sign(dx), 0);
-                }
-                else
-                {
-                    direction = new GridPos(0, Math.Sign(dy));
-                }
-
+                direction = Math.Abs(dx) >= Math.Abs(dy)
+                    ? new GridPos(Math.Sign(dx), 0)
+                    : new GridPos(0, Math.Sign(dy));
                 return true;
             }
 
-            if (targeting == TargetingType.Diagonal)
+            if (targeting == TargetingType.Diagonal && dx != 0 && dy != 0)
             {
-                if (dx == 0 || dy == 0)
-                {
-                    return false;
-                }
-
                 direction = new GridPos(Math.Sign(dx), Math.Sign(dy));
                 return true;
             }
@@ -213,7 +174,14 @@ namespace RogueCards
             return false;
         }
 
-        private void ResolveSingleAdjacent(
+        private static bool IsDirectionValidForTargeting(TargetingType targeting, GridPos direction) => targeting switch
+        {
+            TargetingType.Orthogonal => IsOrthogonalDirection(direction),
+            TargetingType.Diagonal => IsDiagonalDirection(direction),
+            _ => true
+        };
+
+        private static void ResolveSingleAdjacent(
             GameEngine engine,
             CardInstance card,
             GridPos origin,
@@ -233,7 +201,7 @@ namespace RogueCards
             }
         }
 
-        private void ResolveKnockbackAdjacent(
+        private static void ResolveKnockbackAdjacent(
             GameEngine engine,
             CardInstance card,
             GridPos origin,
@@ -251,33 +219,33 @@ namespace RogueCards
 
             engine.ApplyDamageToEnemy(enemy, damage, card.HasPoison, card.Definition.Name);
 
-            if (enemy.CurrentHp > 0)
+            if (enemy.CurrentHp <= 0)
             {
-                GridPos pushDest = enemy.Position.Offset(direction.X, direction.Y);
-                if (pushDest.IsValid(GridSize) &&
-                    pushDest != engine.CurrentRun.Player.Position &&
-                    GetEnemyAt(engine.CurrentRun, pushDest) == null)
-                {
-                    enemy.Position = pushDest;
-                    engine.AddCombatLog($"{enemy.Name} was knocked back to {pushDest}.");
-                    engine.TriggerHazardsForEnemy(enemy);
-                }
+                return;
+            }
+
+            GridPos pushDest = enemy.Position.Offset(direction.X, direction.Y);
+            if (pushDest.IsValid() &&
+                pushDest != engine.CurrentRun.Player.Position &&
+                GetEnemyAt(engine.CurrentRun, pushDest) == null)
+            {
+                enemy.Position = pushDest;
+                engine.AddCombatLog($"{enemy.Name} was knocked back to {pushDest}.");
+                engine.TriggerHazardsForEnemy(enemy);
             }
         }
 
-        private void ResolveArcSweep(
+        private static void ResolveArcSweep(
             GameEngine engine,
             CardInstance card,
             GridPos origin,
             GridPos direction,
             int damage)
         {
-            GridPos[] arcTiles = GetArcSweepTiles(origin, direction);
             int hits = 0;
-
-            foreach (GridPos tile in arcTiles)
+            foreach (GridPos tile in GetArcSweepTiles(origin, direction))
             {
-                if (!tile.IsValid(GridSize))
+                if (!tile.IsValid())
                 {
                     continue;
                 }
@@ -296,7 +264,7 @@ namespace RogueCards
             }
         }
 
-        private void ResolveLineProjectile(
+        private static void ResolveLineProjectile(
             GameEngine engine,
             CardInstance card,
             GridPos origin,
@@ -310,7 +278,7 @@ namespace RogueCards
             for (int step = 1; step <= maxRange; step++)
             {
                 GridPos tile = origin.Offset(direction.X * step, direction.Y * step);
-                if (!tile.IsValid(GridSize))
+                if (!tile.IsValid())
                 {
                     break;
                 }
@@ -333,11 +301,7 @@ namespace RogueCards
             }
         }
 
-        private void ResolvePlaceBearTrap(
-            GameEngine engine,
-            CardInstance card,
-            GridPos origin,
-            int damage)
+        private static void ResolvePlaceBearTrap(GameEngine engine, GridPos origin, int damage)
         {
             ActiveRunState run = engine.CurrentRun;
             run.Hazards.RemoveAll(h => h.Type == HazardType.BearTrap && h.Position == origin);
@@ -355,21 +319,40 @@ namespace RogueCards
             engine.AddCombatLog($"Turn {run.TurnNumber}: Placed Bear Trap at {origin} (arms when you leave the tile).");
         }
 
-        private void ResolveHarpoonPull(
+        private static void ResolveHarpoonPull(
             GameEngine engine,
             CardInstance card,
             GridPos origin,
             GridPos direction,
-            int damage)
+            int damage,
+            int maxRange)
         {
             ActiveRunState run = engine.CurrentRun;
-            EnemyInstance hitEnemy = null;
-            int hitStep = 0;
+            (EnemyInstance hitEnemy, int hitStep) = FindFirstEnemyInRay(run, origin, direction, maxRange);
 
-            for (int step = 1; step <= 3; step++)
+            if (hitEnemy == null)
+            {
+                engine.AddCombatLog($"Turn {run.TurnNumber}: {card.Definition.Name} missed (range {maxRange}).");
+                return;
+            }
+
+            engine.ApplyDamageToEnemy(hitEnemy, damage, card.HasPoison, card.Definition.Name);
+            if (hitEnemy.CurrentHp > 0 && hitStep > 1)
+            {
+                TryPullEnemyTowardOrigin(engine, hitEnemy, origin, direction, hitStep);
+            }
+        }
+
+        private static (EnemyInstance Enemy, int Step) FindFirstEnemyInRay(
+            ActiveRunState run,
+            GridPos origin,
+            GridPos direction,
+            int maxRange)
+        {
+            for (int step = 1; step <= maxRange; step++)
             {
                 GridPos tile = origin.Offset(direction.X * step, direction.Y * step);
-                if (!tile.IsValid(GridSize))
+                if (!tile.IsValid())
                 {
                     break;
                 }
@@ -377,39 +360,35 @@ namespace RogueCards
                 EnemyInstance candidate = GetEnemyAt(run, tile);
                 if (candidate != null)
                 {
-                    hitEnemy = candidate;
-                    hitStep = step;
-                    break;
+                    return (candidate, step);
                 }
             }
 
-            if (hitEnemy == null)
-            {
-                engine.AddCombatLog($"Turn {run.TurnNumber}: {card.Definition.Name} missed (range 3).");
-                return;
-            }
+            return (null, 0);
+        }
 
-            engine.ApplyDamageToEnemy(hitEnemy, damage, card.HasPoison, card.Definition.Name);
-
-            if (hitEnemy.CurrentHp > 0 && hitStep > 1)
+        private static void TryPullEnemyTowardOrigin(
+            GameEngine engine,
+            EnemyInstance enemy,
+            GridPos origin,
+            GridPos direction,
+            int hitStep)
+        {
+            ActiveRunState run = engine.CurrentRun;
+            for (int pullStep = 1; pullStep < hitStep; pullStep++)
             {
-                for (int pullStep = 1; pullStep < hitStep; pullStep++)
+                GridPos pullTile = origin.Offset(direction.X * pullStep, direction.Y * pullStep);
+                if (pullTile.IsValid() && pullTile != run.Player.Position && GetEnemyAt(run, pullTile) == null)
                 {
-                    GridPos pullTile = origin.Offset(direction.X * pullStep, direction.Y * pullStep);
-                    if (pullTile.IsValid(GridSize) &&
-                        pullTile != run.Player.Position &&
-                        GetEnemyAt(run, pullTile) == null)
-                    {
-                        hitEnemy.Position = pullTile;
-                        engine.AddCombatLog($"{hitEnemy.Name} was pulled to {pullTile}!");
-                        engine.TriggerHazardsForEnemy(hitEnemy);
-                        break;
-                    }
+                    enemy.Position = pullTile;
+                    engine.AddCombatLog($"{enemy.Name} was pulled to {pullTile}!");
+                    engine.TriggerHazardsForEnemy(enemy);
+                    return;
                 }
             }
         }
 
-        private void ResolveDiagonalDash(
+        private static void ResolveDiagonalDash(
             GameEngine engine,
             CardInstance card,
             GridPos origin,
@@ -418,7 +397,7 @@ namespace RogueCards
             ActiveRunState run = engine.CurrentRun;
             GridPos target = origin.Offset(direction.X, direction.Y);
 
-            if (!target.IsValid(GridSize) || GetEnemyAt(run, target) != null)
+            if (!target.IsValid() || GetEnemyAt(run, target) != null)
             {
                 engine.AddCombatLog($"Turn {run.TurnNumber}: {card.Definition.Name} to {target} was blocked.");
                 return;
@@ -430,19 +409,20 @@ namespace RogueCards
             engine.TriggerHazardsForPlayer();
         }
 
-        private void ResolveSlideTwo(
+        private static void ResolveSlideTwo(
             GameEngine engine,
             CardInstance card,
             GridPos origin,
-            GridPos direction)
+            GridPos direction,
+            int maxSteps)
         {
             ActiveRunState run = engine.CurrentRun;
             GridPos destination = origin;
 
-            for (int step = 1; step <= 2; step++)
+            for (int step = 1; step <= maxSteps; step++)
             {
                 GridPos nextTile = origin.Offset(direction.X * step, direction.Y * step);
-                if (!nextTile.IsValid(GridSize) || GetEnemyAt(run, nextTile) != null)
+                if (!nextTile.IsValid() || GetEnemyAt(run, nextTile) != null)
                 {
                     break;
                 }
@@ -462,7 +442,7 @@ namespace RogueCards
             engine.TriggerHazardsForPlayer();
         }
 
-        private void TraceLinePreview(
+        private static void TraceLinePreview(
             ActiveRunState run,
             AimPreviewResult result,
             GridPos origin,
@@ -475,51 +455,53 @@ namespace RogueCards
             for (int step = 1; step <= maxRange; step++)
             {
                 GridPos tile = origin.Offset(direction.X * step, direction.Y * step);
-                if (!tile.IsValid(GridSize))
+                if (!tile.IsValid())
                 {
                     break;
                 }
 
                 result.AffectedTiles.Add(tile);
-
-                if (GetEnemyAt(run, tile) != null)
+                if (GetEnemyAt(run, tile) == null)
                 {
-                    result.HitEnemyTiles.Add(tile);
-                    hits++;
-                    if (hits >= maxHits)
-                    {
-                        break;
-                    }
+                    continue;
+                }
+
+                result.HitEnemyTiles.Add(tile);
+                hits++;
+                if (hits >= maxHits)
+                {
+                    break;
                 }
             }
         }
 
-        private void ComputeDiagonalDashPreview(
+        private static void ComputeDiagonalDashPreview(
             ActiveRunState run,
             AimPreviewResult result,
             GridPos origin,
             GridPos direction)
         {
             GridPos target = origin.Offset(direction.X, direction.Y);
-            if (target.IsValid(GridSize) && GetEnemyAt(run, target) == null)
+            if (target.IsValid() && GetEnemyAt(run, target) == null)
             {
                 result.AffectedTiles.Add(target);
                 result.MoveDestination = target;
             }
         }
 
-        private void ComputeSlidePreview(
+        private static void ComputeSlidePreview(
             ActiveRunState run,
             AimPreviewResult result,
             GridPos origin,
-            GridPos direction)
+            GridPos direction,
+            int maxSteps)
         {
             GridPos destination = origin;
 
-            for (int step = 1; step <= 2; step++)
+            for (int step = 1; step <= maxSteps; step++)
             {
                 GridPos nextTile = origin.Offset(direction.X * step, direction.Y * step);
-                if (!nextTile.IsValid(GridSize) || GetEnemyAt(run, nextTile) != null)
+                if (!nextTile.IsValid() || GetEnemyAt(run, nextTile) != null)
                 {
                     break;
                 }
@@ -534,9 +516,9 @@ namespace RogueCards
             }
         }
 
-        private void AddTileIfValid(ActiveRunState run, AimPreviewResult result, GridPos tile)
+        private static void AddTileIfValid(ActiveRunState run, AimPreviewResult result, GridPos tile)
         {
-            if (!tile.IsValid(GridSize))
+            if (!tile.IsValid())
             {
                 return;
             }
@@ -552,28 +534,19 @@ namespace RogueCards
         {
             int dx = direction.X;
             int dy = direction.Y;
-
-            return new GridPos[]
-            {
+            return
+            [
                 origin.Offset(dx - dy, dy + dx),
                 origin.Offset(dx, dy),
                 origin.Offset(dx + dy, dy - dx)
-            };
+            ];
         }
 
-        private static bool IsOrthogonalDirection(GridPos dir)
-        {
-            return Math.Abs(dir.X) + Math.Abs(dir.Y) == 1;
-        }
+        private static bool IsOrthogonalDirection(GridPos dir) => Math.Abs(dir.X) + Math.Abs(dir.Y) == 1;
 
-        private static bool IsDiagonalDirection(GridPos dir)
-        {
-            return Math.Abs(dir.X) == 1 && Math.Abs(dir.Y) == 1;
-        }
+        private static bool IsDiagonalDirection(GridPos dir) => Math.Abs(dir.X) == 1 && Math.Abs(dir.Y) == 1;
 
-        private static EnemyInstance GetEnemyAt(ActiveRunState run, GridPos pos)
-        {
-            return run.Enemies.FirstOrDefault(e => e.CurrentHp > 0 && e.Position == pos);
-        }
+        private static EnemyInstance GetEnemyAt(ActiveRunState run, GridPos pos) =>
+            run.Enemies.FirstOrDefault(e => e.CurrentHp > 0 && e.Position == pos);
     }
 }

@@ -1,0 +1,92 @@
+{
+  "scannerProperties": [
+    {
+      "key": "sonar.scanner.app",
+      "value": "ScannerMSBuild"
+    },
+    {
+      "key": "sonar.scanner.appVersion",
+      "value": "12.1"
+    },
+    {
+      "key": "sonar.scanner.bootstrapStartTime",
+      "value": "1795367229000"
+    },
+    {
+      "key": "sonar.projectKey",
+      "value": "iterative-v1"
+    },
+    {
+      "key": "sonar.working.directory",
+      "value": "C:\\school\\3\\bakalarska_prace\\iterative\\.sonarqube\\out\\.sonar"
+    },
+    {
+      "key": "sonar.projectBaseDir",
+      "value": "C:\\school\\3\\bakalarska_prace\\iterative"
+    },
+    {
+      "key": "sonar.pullrequest.cache.basepath",
+      "value": "C:\\school\\3\\bakalarska_prace\\iterative"
+    },
+    {
+      "key": "sonar.sources",
+      "value": "C:\\school\\3\\bakalarska_prace\\iterative\\.vs\\iterative.slnx\\v18\\DocumentLayout.backup.json,C:\\school\\3\\bakalarska_prace\\iterative\\.vs\\iterative.slnx\\v18\\DocumentLayout.json,C:\\school\\3\\bakalarska_prace\\iterative\\.vs\\iterative.slnx\\v18\\ResourceExplorer\\settings.json"
+    },
+    {
+      "key": "sonar.tests",
+      "value": ""
+    },
+    {
+      "key": "sonar.modules",
+      "value": "955CE461-4BFF-C67F-02EE-B2DBFD906C2E"
+    },
+    {
+      "key": "955CE461-4BFF-C67F-02EE-B2DBFD906C2E.sonar.projectKey",
+      "value": "iterative-v1:955CE461-4BFF-C67F-02EE-B2DBFD906C2E"
+    },
+    {
+      "key": "955CE461-4BFF-C67F-02EE-B2DBFD906C2E.sonar.projectName",
+      "value": "iterative"
+    },
+    {
+      "key": "955CE461-4BFF-C67F-02EE-B2DBFD906C2E.sonar.projectBaseDir",
+      "value": "C:\\school\\3\\bakalarska_prace\\iterative\\iterative"
+    },
+    {
+      "key": "955CE461-4BFF-C67F-02EE-B2DBFD906C2E.sonar.working.directory",
+      "value": "C:\\school\\3\\bakalarska_prace\\iterative\\.sonarqube\\out\\.sonar\\mod0"
+    },
+    {
+      "key": "955CE461-4BFF-C67F-02EE-B2DBFD906C2E.sonar.sourceEncoding",
+      "value": "utf-8"
+    },
+    {
+      "key": "955CE461-4BFF-C67F-02EE-B2DBFD906C2E.sonar.tests",
+      "value": ""
+    },
+    {
+      "key": "955CE461-4BFF-C67F-02EE-B2DBFD906C2E.sonar.sources",
+      "value": "C:\\school\\3\\bakalarska_prace\\iterative\\iterative\\AchievementManager.cs,C:\\school\\3\\bakalarska_prace\\iterative\\iterative\\ArenaRenderer.cs,C:\\school\\3\\bakalarska_prace\\iterative\\iterative\\CardResolver.cs,C:\\school\\3\\bakalarska_prace\\iterative\\iterative\\DataRepository.cs,C:\\school\\3\\bakalarska_prace\\iterative\\iterative\\EnemyAI.cs,C:\\school\\3\\bakalarska_prace\\iterative\\iterative\\EntityGraphics.cs,C:\\school\\3\\bakalarska_prace\\iterative\\iterative\\GameEngine.cs,C:\\school\\3\\bakalarska_prace\\iterative\\iterative\\Mainform.cs,C:\\school\\3\\bakalarska_prace\\iterative\\iterative\\MenuRenderer.cs,C:\\school\\3\\bakalarska_prace\\iterative\\iterative\\Models.cs,C:\\school\\3\\bakalarska_prace\\iterative\\iterative\\PersistenceManager.cs,C:\\school\\3\\bakalarska_prace\\iterative\\iterative\\Program.cs,C:\\school\\3\\bakalarska_prace\\iterative\\iterative\\StatsRenderer.cs,C:\\school\\3\\bakalarska_prace\\iterative\\iterative\\Mainform.resx,C:\\school\\3\\bakalarska_prace\\iterative\\iterative\\obj\\iterative.csproj.nuget.dgspec.json,C:\\school\\3\\bakalarska_prace\\iterative\\iterative\\obj\\project.assets.json,C:\\school\\3\\bakalarska_prace\\iterative\\iterative\\bin\\Debug\\net10.0-windows\\iterative.deps.json,C:\\school\\3\\bakalarska_prace\\iterative\\iterative\\bin\\Debug\\net10.0-windows\\iterative.runtimeconfig.json,C:\\school\\3\\bakalarska_prace\\iterative\\iterative\\obj\\Debug\\net10.0-windows\\iterative.designer.deps.json,C:\\school\\3\\bakalarska_prace\\iterative\\iterative\\obj\\Debug\\net10.0-windows\\iterative.designer.runtimeconfig.json,C:\\school\\3\\bakalarska_prace\\iterative\\iterative\\obj\\Debug\\net10.0-windows\\iterative.sourcelink.json"
+    },
+    {
+      "key": "955CE461-4BFF-C67F-02EE-B2DBFD906C2E.sonar.cs.analyzer.projectOutPaths",
+      "value": "C:\\school\\3\\bakalarska_prace\\iterative\\.sonarqube\\out\\0"
+    },
+    {
+      "key": "955CE461-4BFF-C67F-02EE-B2DBFD906C2E.sonar.cs.roslyn.reportFilePaths",
+      "value": "C:\\school\\3\\bakalarska_prace\\iterative\\.sonarqube\\out\\0\\Issues.json"
+    },
+    {
+      "key": "955CE461-4BFF-C67F-02EE-B2DBFD906C2E.sonar.cs.scanner.telemetry",
+      "value": "C:\\school\\3\\bakalarska_prace\\iterative\\.sonarqube\\out\\0\\Telemetry.json"
+    },
+    {
+      "key": "sonar.token",
+      "value": "***"
+    },
+    {
+      "key": "sonar.host.url",
+      "value": "http://localhost:9000"
+    }
+  ]
+}

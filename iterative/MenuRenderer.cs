@@ -115,7 +115,7 @@ namespace RogueCards
             }
 
             Rectangle level1Rect = new Rectangle(350, 17, 200, 34);
-            DrawRoundedBox(g, level1Rect, 6, Color.FromArgb(40, 52, 68), colorGold, 1.5f);
+            EntityGraphics.DrawRoundedBox(g, level1Rect, 6, Color.FromArgb(40, 52, 68), colorGold, 1.5f);
             using (Font pillFont = new Font("Segoe UI", 9.5f, FontStyle.Bold))
             using (SolidBrush textBrush = new SolidBrush(colorTextPrimary))
             using (StringFormat sf = CreateCenterFormat())
@@ -130,7 +130,7 @@ namespace RogueCards
                 : (hoverArea2 ? Color.FromArgb(36, 41, 52) : Color.FromArgb(28, 33, 42));
             Color area2Border = profile.Area2Unlocked ? colorCyan : colorBorder;
 
-            DrawRoundedBox(g, area2Rect, 6, area2Bg, area2Border, 1.5f);
+            EntityGraphics.DrawRoundedBox(g, area2Rect, 6, area2Bg, area2Border, 1.5f);
             using (Font pillFont = new Font("Segoe UI", 9f, FontStyle.Bold))
             using (SolidBrush textBrush = new SolidBrush(profile.Area2Unlocked ? colorCyan : colorMuted))
             using (StringFormat sf = CreateCenterFormat())
@@ -148,8 +148,8 @@ namespace RogueCards
             });
 
             Rectangle coinsRect = new Rectangle(776, 15, 170, 38);
-            DrawRoundedBox(g, coinsRect, 8, Color.FromArgb(38, 34, 24), colorGold, 1.5f);
-            DrawCoinIcon(g, coinsRect.X + 20, coinsRect.Y + 19, 10);
+            EntityGraphics.DrawRoundedBox(g, coinsRect, 8, Color.FromArgb(38, 34, 24), colorGold, 1.5f);
+            EntityGraphics.DrawCoinIcon(g, coinsRect.X + 20, coinsRect.Y + 19, 10);
 
             using (Font coinFont = new Font("Segoe UI", 12f, FontStyle.Bold))
             using (SolidBrush goldBrush = new SolidBrush(colorGold))
@@ -162,13 +162,15 @@ namespace RogueCards
             Rectangle statsRect = new Rectangle(964, 15, 288, 38);
             bool hoverStats = statsRect.Contains(mouseLocation);
             Color statsBg = hoverStats ? Color.FromArgb(52, 65, 86) : Color.FromArgb(37, 46, 61);
-            DrawRoundedBox(g, statsRect, 8, statsBg, hoverStats ? colorGold : colorBorder, 1.5f);
+            EntityGraphics.DrawRoundedBox(g, statsRect, 8, statsBg, hoverStats ? colorGold : colorBorder, 1.5f);
+            EntityGraphics.DrawTrophyIcon(g, statsRect.X + 24, statsRect.Y + 19, 10, true);
 
             using (Font btnFont = new Font("Segoe UI", 10.5f, FontStyle.Bold))
             using (SolidBrush textBrush = new SolidBrush(colorTextPrimary))
             using (StringFormat sf = CreateCenterFormat())
             {
-                g.DrawString("Achievements & Statistics", btnFont, textBrush, statsRect, sf);
+                Rectangle labelRect = new Rectangle(statsRect.X + 34, statsRect.Y, statsRect.Width - 42, statsRect.Height);
+                g.DrawString("Achievements & Statistics", btnFont, textBrush, labelRect, sf);
             }
 
             hitboxes.Add(new MenuHitbox
@@ -188,7 +190,7 @@ namespace RogueCards
             Point mouseLocation)
         {
             Rectangle colRect = new Rectangle(28, 82, 428, 592);
-            DrawRoundedBox(g, colRect, 10, colorPanel, colorBorder, 1.5f);
+            EntityGraphics.DrawRoundedBox(g, colRect, 10, colorPanel, colorBorder, 1.5f);
 
             using (Font sectionFont = new Font("Segoe UI", 11.5f, FontStyle.Bold))
             using (SolidBrush goldBrush = new SolidBrush(colorGold))
@@ -243,7 +245,7 @@ namespace RogueCards
             Color contText = hasActiveSave ? colorTextPrimary : colorMuted;
             string contLabel = hasActiveSave ? "CONTINUE SAVED RUN" : "CONTINUE SAVED RUN (NO SAVE)";
 
-            DrawRoundedBox(g, continueBtn, 8, contBg, contBorder, 1.5f);
+            EntityGraphics.DrawRoundedBox(g, continueBtn, 8, contBg, contBorder, 1.5f);
             using (Font btnFont = new Font("Segoe UI", 10.5f, FontStyle.Bold))
             using (SolidBrush textBrush = new SolidBrush(contText))
             using (StringFormat sf = CreateCenterFormat())
@@ -269,34 +271,52 @@ namespace RogueCards
             bool isSelected,
             bool isHovered)
         {
-            Color bg = isSelected
-                ? Color.FromArgb(38, 50, 68)
-                : (isHovered && isUnlocked ? Color.FromArgb(40, 48, 63) : colorCardBg);
+            Color topBg = isSelected
+                ? Color.FromArgb(44, 58, 80)
+                : (isHovered && isUnlocked ? Color.FromArgb(42, 52, 68) : Color.FromArgb(37, 46, 61));
+            Color botBg = isSelected
+                ? Color.FromArgb(30, 40, 56)
+                : Color.FromArgb(26, 33, 45);
 
             if (!isUnlocked)
             {
-                bg = Color.FromArgb(28, 32, 41);
+                topBg = Color.FromArgb(30, 34, 44);
+                botBg = Color.FromArgb(24, 28, 36);
             }
 
             Color border = isSelected
                 ? colorGold
                 : (isHovered && isUnlocked ? colorCyan : colorBorder);
 
-            DrawRoundedBox(g, rect, 10, bg, border, isSelected ? 2.5f : 1.5f);
+            EntityGraphics.DrawGradientRoundedBox(g, rect, 10, topBg, botBg, border, isSelected ? 2.5f : 1.5f);
 
             Rectangle portraitRect = new Rectangle(rect.X + 12, rect.Y + 14, 96, 114);
-            Color portraitBg = character.Id == "viking"
-                ? Color.FromArgb(24, 38, 58)
-                : Color.FromArgb(22, 44, 54);
-            DrawRoundedBox(g, portraitRect, 8, portraitBg, isSelected ? colorGold : colorBorder, 1.5f);
+            Color portraitTop = character.Id == "viking"
+                ? Color.FromArgb(30, 48, 74)
+                : Color.FromArgb(24, 54, 68);
+            Color portraitBot = Color.FromArgb(16, 22, 32);
+
+            EntityGraphics.DrawGradientRoundedBox(g, portraitRect, 8, portraitTop, portraitBot, isSelected ? colorGold : colorBorder, 1.5f);
+
+            int pcx = portraitRect.X + (portraitRect.Width / 2);
+            int pcy = portraitRect.Y + (portraitRect.Height / 2) + 4;
 
             if (character.Id == "viking")
             {
-                DrawVikingPortrait(g, portraitRect);
+                EntityGraphics.DrawViking(g, pcx, pcy, 1.48f);
             }
             else
             {
-                DrawShieldmaidenPortrait(g, portraitRect, !isUnlocked);
+                EntityGraphics.DrawShieldmaiden(g, pcx, pcy, 1.48f, !isUnlocked);
+                if (!isUnlocked)
+                {
+                    using (SolidBrush veil = new SolidBrush(Color.FromArgb(88, 10, 14, 20)))
+                    {
+                        g.FillRectangle(veil, portraitRect);
+                    }
+
+                    EntityGraphics.DrawLockIcon(g, pcx, pcy);
+                }
             }
 
             int infoX = portraitRect.Right + 14;
@@ -318,7 +338,7 @@ namespace RogueCards
                 Color badgeBg = isSelected
                     ? Color.FromArgb(148, 106, 28)
                     : (isUnlocked ? Color.FromArgb(40, 88, 66) : Color.FromArgb(95, 42, 46));
-                DrawRoundedBox(g, statusBadge, 5, badgeBg, badgeBg, 1f);
+                EntityGraphics.DrawRoundedBox(g, statusBadge, 5, badgeBg, badgeBg, 1f);
 
                 using (StringFormat sf = CreateCenterFormat())
                 using (SolidBrush whiteBrush = new SolidBrush(Color.White))
@@ -345,7 +365,7 @@ namespace RogueCards
                 }
                 else
                 {
-                    DrawRoundedBox(g, bottomBanner, 5, Color.FromArgb(52, 30, 34), Color.FromArgb(145, 62, 68), 1f);
+                    EntityGraphics.DrawRoundedBox(g, bottomBanner, 5, Color.FromArgb(52, 30, 34), Color.FromArgb(145, 62, 68), 1f);
                     using (StringFormat sf = CreateCenterFormat())
                     using (SolidBrush lockBrush = new SolidBrush(Color.FromArgb(240, 175, 175)))
                     {
@@ -362,7 +382,7 @@ namespace RogueCards
             Point mouseLocation)
         {
             Rectangle panelRect = new Rectangle(474, 82, 778, 316);
-            DrawRoundedBox(g, panelRect, 10, colorPanel, colorBorder, 1.5f);
+            EntityGraphics.DrawRoundedBox(g, panelRect, 10, colorPanel, colorBorder, 1.5f);
 
             int totalWeapons = database.WeaponList.Count;
             int unlockedCount = database.WeaponList.Count(w => profile.UnlockedWeaponIds.Contains(w.Id));
@@ -391,7 +411,7 @@ namespace RogueCards
             if (nextWeapons.Count == 0)
             {
                 Rectangle doneRect = new Rectangle(panelRect.X + 20, panelRect.Y + 52, panelRect.Width - 40, panelRect.Height - 72);
-                DrawRoundedBox(g, doneRect, 10, colorCardBg, colorGreen, 1.5f);
+                EntityGraphics.DrawRoundedBox(g, doneRect, 10, colorCardBg, colorGreen, 1.5f);
                 using (Font doneFont = new Font("Segoe UI", 14f, FontStyle.Bold))
                 using (SolidBrush greenBrush = new SolidBrush(colorGreen))
                 using (StringFormat sf = CreateCenterFormat())
@@ -422,38 +442,47 @@ namespace RogueCards
             Point mouseLocation)
         {
             Color catColor = GetCategoryColor(weapon.Category);
+            Color catDark = Color.FromArgb(catColor.A, (int)(catColor.R * 0.72f), (int)(catColor.G * 0.72f), (int)(catColor.B * 0.72f));
             bool canAfford = playerCoins >= weapon.UnlockCost;
             Rectangle buyBtn = new Rectangle(rect.X + 14, rect.Bottom - 54, rect.Width - 28, 40);
             bool hoverBuy = buyBtn.Contains(mouseLocation);
             bool hoverCard = rect.Contains(mouseLocation);
 
             Rectangle drawRect = hoverCard && canAfford
-                ? new Rectangle(rect.X, rect.Y - 2, rect.Width, rect.Height)
+                ? new Rectangle(rect.X, rect.Y - 3, rect.Width, rect.Height)
                 : rect;
 
             Rectangle shadowRect = new Rectangle(drawRect.X + 4, drawRect.Y + 5, drawRect.Width, drawRect.Height);
-            DrawRoundedBox(g, shadowRect, 10, Color.FromArgb(110, 0, 0, 0), Color.Transparent, 0f);
+            EntityGraphics.DrawRoundedBox(g, shadowRect, 10, Color.FromArgb(115, 0, 0, 0), Color.Transparent, 0f);
 
-            DrawRoundedBox(g, drawRect, 10, colorCardBg, hoverCard ? catColor : colorBorder, hoverCard ? 2f : 1.5f);
+            EntityGraphics.DrawGradientRoundedBox(
+                g,
+                drawRect,
+                10,
+                Color.FromArgb(39, 48, 64),
+                Color.FromArgb(27, 34, 46),
+                hoverCard ? catColor : colorBorder,
+                hoverCard ? 2.2f : 1.5f);
 
             Rectangle headerRect = new Rectangle(drawRect.X + 2, drawRect.Y + 2, drawRect.Width - 4, 42);
-            using (GraphicsPath headerPath = CreateTopRoundedRectPath(headerRect, 8))
-            using (SolidBrush headerBrush = new SolidBrush(Color.FromArgb(215, catColor.R, catColor.G, catColor.B)))
+            using (GraphicsPath headerPath = EntityGraphics.CreateTopRoundedRectPath(headerRect, 8))
+            using (LinearGradientBrush headerBrush = new LinearGradientBrush(headerRect, catColor, catDark, LinearGradientMode.Vertical))
             {
                 g.FillPath(headerBrush, headerPath);
             }
 
-            using (Font nameFont = new Font("Segoe UI", 12f, FontStyle.Bold))
+            EntityGraphics.DrawCategoryIcon(g, weapon.Category, drawRect.X + 20, drawRect.Y + 23, 14);
+
+            using (Font nameFont = new Font("Segoe UI", 11.8f, FontStyle.Bold))
             using (Font badgeFont = new Font("Segoe UI", 8.5f, FontStyle.Bold))
-            using (Font statFont = new Font("Segoe UI", 9.5f, FontStyle.Bold))
             using (Font descFont = new Font("Segoe UI", 9.5f, FontStyle.Regular))
             using (SolidBrush whiteBrush = new SolidBrush(Color.White))
             using (SolidBrush secondaryBrush = new SolidBrush(colorTextPrimary))
             {
-                g.DrawString(weapon.Name, nameFont, whiteBrush, drawRect.X + 14, drawRect.Y + 11);
+                g.DrawString(weapon.Name, nameFont, whiteBrush, drawRect.X + 34, drawRect.Y + 11);
 
                 Rectangle catPill = new Rectangle(drawRect.Right - 96, drawRect.Y + 11, 84, 24);
-                DrawRoundedBox(g, catPill, 5, Color.FromArgb(90, 0, 0, 0), Color.FromArgb(140, 255, 255, 255), 1f);
+                EntityGraphics.DrawRoundedBox(g, catPill, 5, Color.FromArgb(90, 0, 0, 0), Color.FromArgb(140, 255, 255, 255), 1f);
                 using (StringFormat sf = CreateCenterFormat())
                 {
                     g.DrawString(weapon.Category.ToString().ToUpperInvariant(), badgeFont, whiteBrush, catPill, sf);
@@ -468,7 +497,7 @@ namespace RogueCards
                 DrawStatPill(g, aimPill, weapon.Targeting.ToString(), colorGold);
 
                 Rectangle descBox = new Rectangle(drawRect.X + 14, drawRect.Y + 94, drawRect.Width - 28, 90);
-                DrawRoundedBox(g, descBox, 6, Color.FromArgb(24, 30, 41), Color.FromArgb(46, 56, 73), 1f);
+                EntityGraphics.DrawRoundedBox(g, descBox, 6, Color.FromArgb(24, 30, 41), Color.FromArgb(46, 56, 73), 1f);
                 Rectangle descInner = new Rectangle(descBox.X + 10, descBox.Y + 8, descBox.Width - 20, descBox.Height - 16);
                 g.DrawString(weapon.Description, descFont, secondaryBrush, descInner);
             }
@@ -490,7 +519,7 @@ namespace RogueCards
             }
             else
             {
-                DrawRoundedBox(g, drawBuyBtn, 7, Color.FromArgb(35, 40, 51), Color.FromArgb(62, 70, 86), 1.5f);
+                EntityGraphics.DrawRoundedBox(g, drawBuyBtn, 7, Color.FromArgb(35, 40, 51), Color.FromArgb(62, 70, 86), 1.5f);
                 using (Font btnFont = new Font("Segoe UI", 9.8f, FontStyle.Bold))
                 using (SolidBrush mutedBrush = new SolidBrush(colorMuted))
                 using (StringFormat sf = CreateCenterFormat())
@@ -515,7 +544,7 @@ namespace RogueCards
             Point mouseLocation)
         {
             Rectangle panelRect = new Rectangle(474, 412, 778, 262);
-            DrawRoundedBox(g, panelRect, 10, colorPanel, colorBorder, 1.5f);
+            EntityGraphics.DrawRoundedBox(g, panelRect, 10, colorPanel, colorBorder, 1.5f);
 
             int totalUpgrades = database.UpgradeList.Count;
             int unlockedCount = database.UpgradeList.Count(u => profile.UnlockedUpgradeIds.Contains(u.Id));
@@ -544,7 +573,7 @@ namespace RogueCards
             if (nextUpgrades.Count == 0)
             {
                 Rectangle doneRect = new Rectangle(panelRect.X + 20, panelRect.Y + 52, panelRect.Width - 40, panelRect.Height - 72);
-                DrawRoundedBox(g, doneRect, 10, colorCardBg, colorGold, 1.5f);
+                EntityGraphics.DrawRoundedBox(g, doneRect, 10, colorCardBg, colorGold, 1.5f);
                 using (Font doneFont = new Font("Segoe UI", 14f, FontStyle.Bold))
                 using (SolidBrush goldBrush = new SolidBrush(colorGold))
                 using (StringFormat sf = CreateCenterFormat())
@@ -579,10 +608,17 @@ namespace RogueCards
             bool hoverBuy = buyBtn.Contains(mouseLocation);
             bool hoverCard = rect.Contains(mouseLocation);
 
-            DrawRoundedBox(g, rect, 10, colorCardBg, hoverCard ? colorGold : colorBorder, hoverCard ? 2f : 1.5f);
+            EntityGraphics.DrawGradientRoundedBox(
+                g,
+                rect,
+                10,
+                Color.FromArgb(39, 48, 64),
+                Color.FromArgb(27, 34, 46),
+                hoverCard ? colorGold : colorBorder,
+                hoverCard ? 2f : 1.5f);
 
             Rectangle headerRect = new Rectangle(rect.X + 2, rect.Y + 2, rect.Width - 4, 40);
-            using (GraphicsPath headerPath = CreateTopRoundedRectPath(headerRect, 8))
+            using (GraphicsPath headerPath = EntityGraphics.CreateTopRoundedRectPath(headerRect, 8))
             using (SolidBrush headerBrush = new SolidBrush(Color.FromArgb(46, 56, 74)))
             {
                 g.FillPath(headerBrush, headerPath);
@@ -597,14 +633,14 @@ namespace RogueCards
                 g.DrawString(upgrade.Name, nameFont, goldBrush, rect.X + 14, rect.Y + 10);
 
                 Rectangle tierPill = new Rectangle(rect.Right - 76, rect.Y + 10, 64, 22);
-                DrawRoundedBox(g, tierPill, 5, Color.FromArgb(30, 37, 50), colorGoldDark, 1f);
+                EntityGraphics.DrawRoundedBox(g, tierPill, 5, Color.FromArgb(30, 37, 50), colorGoldDark, 1f);
                 using (StringFormat sf = CreateCenterFormat())
                 {
                     g.DrawString($"TIER #{upgrade.UnlockOrder}", tierFont, goldBrush, tierPill, sf);
                 }
 
                 Rectangle descBox = new Rectangle(rect.X + 14, rect.Y + 52, rect.Width - 28, 82);
-                DrawRoundedBox(g, descBox, 6, Color.FromArgb(24, 30, 41), Color.FromArgb(46, 56, 73), 1f);
+                EntityGraphics.DrawRoundedBox(g, descBox, 6, Color.FromArgb(24, 30, 41), Color.FromArgb(46, 56, 73), 1f);
                 Rectangle descInner = new Rectangle(descBox.X + 10, descBox.Y + 10, descBox.Width - 20, descBox.Height - 20);
                 g.DrawString(upgrade.Description, descFont, textBrush, descInner);
             }
@@ -625,7 +661,7 @@ namespace RogueCards
             }
             else
             {
-                DrawRoundedBox(g, buyBtn, 7, Color.FromArgb(35, 40, 51), Color.FromArgb(62, 70, 86), 1.5f);
+                EntityGraphics.DrawRoundedBox(g, buyBtn, 7, Color.FromArgb(35, 40, 51), Color.FromArgb(62, 70, 86), 1.5f);
                 using (Font btnFont = new Font("Segoe UI", 9.8f, FontStyle.Bold))
                 using (SolidBrush mutedBrush = new SolidBrush(colorMuted))
                 using (StringFormat sf = CreateCenterFormat())
@@ -670,209 +706,13 @@ namespace RogueCards
                 g.DrawString(message, footerFont, string.IsNullOrWhiteSpace(statusMessage) ? textBrush : goldBrush, leftRect, leftFormat);
 
                 Rectangle rightRect = new Rectangle(800, footerRect.Y, WindowWidth - 828, footerRect.Height);
-                g.DrawString("Single-Screen Tactical UI | Zero External Assets", footerFont, textBrush, rightRect, rightFormat);
-            }
-        }
-
-        private void DrawVikingPortrait(Graphics g, Rectangle bounds)
-        {
-            int cx = bounds.X + (bounds.Width / 2);
-            int cy = bounds.Y + (bounds.Height / 2) + 8;
-
-            using (SolidBrush cloakBrush = new SolidBrush(Color.FromArgb(44, 92, 168)))
-            using (Pen goldPen = new Pen(colorGold, 2f))
-            {
-                Point[] shoulders = new Point[]
-                {
-                    new Point(cx - 34, bounds.Bottom - 6),
-                    new Point(cx - 26, cy + 12),
-                    new Point(cx + 26, cy + 12),
-                    new Point(cx + 34, bounds.Bottom - 6)
-                };
-                g.FillPolygon(cloakBrush, shoulders);
-                g.DrawPolygon(goldPen, shoulders);
-            }
-
-            using (SolidBrush skinBrush = new SolidBrush(Color.FromArgb(224, 182, 146)))
-            using (SolidBrush beardBrush = new SolidBrush(Color.FromArgb(186, 118, 48)))
-            {
-                g.FillEllipse(skinBrush, cx - 15, cy - 16, 30, 30);
-
-                Point[] beard = new Point[]
-                {
-                    new Point(cx - 15, cy - 1),
-                    new Point(cx + 15, cy - 1),
-                    new Point(cx + 11, cy + 18),
-                    new Point(cx, cy + 25),
-                    new Point(cx - 11, cy + 18)
-                };
-                g.FillPolygon(beardBrush, beard);
-            }
-
-            using (SolidBrush eyeBrush = new SolidBrush(Color.FromArgb(26, 32, 42)))
-            {
-                g.FillRectangle(eyeBrush, cx - 7, cy - 6, 4, 4);
-                g.FillRectangle(eyeBrush, cx + 3, cy - 6, 4, 4);
-            }
-
-            using (SolidBrush hornBrush = new SolidBrush(Color.FromArgb(236, 226, 200)))
-            using (Pen hornPen = new Pen(Color.FromArgb(130, 118, 92), 1.2f))
-            {
-                Point[] leftHorn = new Point[]
-                {
-                    new Point(cx - 16, cy - 14),
-                    new Point(cx - 34, cy - 24),
-                    new Point(cx - 28, cy - 38),
-                    new Point(cx - 22, cy - 26),
-                    new Point(cx - 12, cy - 20)
-                };
-                Point[] rightHorn = new Point[]
-                {
-                    new Point(cx + 16, cy - 14),
-                    new Point(cx + 34, cy - 24),
-                    new Point(cx + 28, cy - 38),
-                    new Point(cx + 22, cy - 26),
-                    new Point(cx + 12, cy - 20)
-                };
-                g.FillPolygon(hornBrush, leftHorn);
-                g.DrawPolygon(hornPen, leftHorn);
-                g.FillPolygon(hornBrush, rightHorn);
-                g.DrawPolygon(hornPen, rightHorn);
-            }
-
-            using (SolidBrush steelBrush = new SolidBrush(Color.FromArgb(138, 152, 174)))
-            using (Pen goldPen = new Pen(colorGold, 2f))
-            {
-                g.FillPie(steelBrush, cx - 18, cy - 30, 36, 32, 180, 180);
-                g.DrawArc(goldPen, cx - 18, cy - 30, 36, 32, 180, 180);
-                g.DrawLine(goldPen, cx - 18, cy - 14, cx + 18, cy - 14);
-                g.DrawLine(goldPen, cx, cy - 30, cx, cy - 10);
-            }
-
-            using (Pen shaftPen = new Pen(Color.FromArgb(138, 92, 52), 3f))
-            using (SolidBrush bladeBrush = new SolidBrush(Color.FromArgb(196, 208, 224)))
-            {
-                g.DrawLine(shaftPen, cx + 24, cy + 30, cx + 34, cy - 18);
-                Point[] blade = new Point[]
-                {
-                    new Point(cx + 32, cy - 16),
-                    new Point(cx + 42, cy - 22),
-                    new Point(cx + 41, cy - 4),
-                    new Point(cx + 30, cy - 8)
-                };
-                g.FillPolygon(bladeBrush, blade);
-            }
-        }
-
-        private void DrawShieldmaidenPortrait(Graphics g, Rectangle bounds, bool locked)
-        {
-            int cx = bounds.X + (bounds.Width / 2);
-            int cy = bounds.Y + (bounds.Height / 2) + 8;
-
-            Color primaryArmor = locked ? Color.FromArgb(72, 82, 94) : Color.FromArgb(52, 146, 174);
-            Color metalColor = locked ? Color.FromArgb(118, 126, 138) : Color.FromArgb(192, 208, 224);
-            Color runeColor = locked ? Color.FromArgb(130, 138, 148) : colorCyan;
-
-            using (SolidBrush armorBrush = new SolidBrush(primaryArmor))
-            using (Pen trimPen = new Pen(metalColor, 2f))
-            {
-                Point[] shoulders = new Point[]
-                {
-                    new Point(cx - 32, bounds.Bottom - 6),
-                    new Point(cx - 22, cy + 12),
-                    new Point(cx + 22, cy + 12),
-                    new Point(cx + 32, bounds.Bottom - 6)
-                };
-                g.FillPolygon(armorBrush, shoulders);
-                g.DrawPolygon(trimPen, shoulders);
-            }
-
-            using (SolidBrush skinBrush = new SolidBrush(locked ? Color.FromArgb(148, 136, 128) : Color.FromArgb(232, 198, 172)))
-            {
-                g.FillEllipse(skinBrush, cx - 13, cy - 15, 26, 28);
-            }
-
-            using (SolidBrush eyeBrush = new SolidBrush(Color.FromArgb(26, 32, 42)))
-            {
-                g.FillRectangle(eyeBrush, cx - 6, cy - 5, 3, 4);
-                g.FillRectangle(eyeBrush, cx + 3, cy - 5, 3, 4);
-            }
-
-            using (SolidBrush wingBrush = new SolidBrush(metalColor))
-            {
-                Point[] leftWing = new Point[]
-                {
-                    new Point(cx - 14, cy - 14),
-                    new Point(cx - 34, cy - 30),
-                    new Point(cx - 26, cy - 18),
-                    new Point(cx - 30, cy - 12),
-                    new Point(cx - 14, cy - 10)
-                };
-                Point[] rightWing = new Point[]
-                {
-                    new Point(cx + 14, cy - 14),
-                    new Point(cx + 34, cy - 30),
-                    new Point(cx + 26, cy - 18),
-                    new Point(cx + 30, cy - 12),
-                    new Point(cx + 14, cy - 10)
-                };
-                g.FillPolygon(wingBrush, leftWing);
-                g.FillPolygon(wingBrush, rightWing);
-            }
-
-            using (SolidBrush helmBrush = new SolidBrush(metalColor))
-            using (Pen runePen = new Pen(runeColor, 2f))
-            {
-                g.FillPie(helmBrush, cx - 16, cy - 29, 32, 30, 180, 180);
-                g.DrawLine(runePen, cx - 16, cy - 14, cx + 16, cy - 14);
-                g.DrawLine(runePen, cx, cy - 29, cx, cy - 9);
-            }
-
-            Rectangle shieldRect = new Rectangle(cx + 6, cy + 4, 34, 34);
-            using (SolidBrush shieldFill = new SolidBrush(Color.FromArgb(30, 56, 72)))
-            using (Pen rimPen = new Pen(metalColor, 2.5f))
-            using (Pen runePen = new Pen(runeColor, 1.8f))
-            {
-                g.FillEllipse(shieldFill, shieldRect);
-                g.DrawEllipse(rimPen, shieldRect);
-                g.DrawLine(runePen, shieldRect.X + 17, shieldRect.Y + 6, shieldRect.X + 17, shieldRect.Bottom - 6);
-                g.DrawLine(runePen, shieldRect.X + 6, shieldRect.Y + 17, shieldRect.Right - 6, shieldRect.Y + 17);
-                g.FillEllipse(new SolidBrush(metalColor), shieldRect.X + 13, shieldRect.Y + 13, 8, 8);
-            }
-
-            if (locked)
-            {
-                using (SolidBrush veilBrush = new SolidBrush(Color.FromArgb(95, 10, 14, 20)))
-                {
-                    g.FillRectangle(veilBrush, bounds);
-                }
-
-                Rectangle lockBody = new Rectangle(cx - 11, cy - 4, 22, 18);
-                using (Pen shacklePen = new Pen(Color.FromArgb(220, 185, 110), 2.5f))
-                using (SolidBrush lockBrush = new SolidBrush(Color.FromArgb(215, 165, 65)))
-                {
-                    g.DrawArc(shacklePen, cx - 7, cy - 14, 14, 18, 180, 180);
-                    g.FillRectangle(lockBrush, lockBody);
-                }
-            }
-        }
-
-        private void DrawCoinIcon(Graphics g, int cx, int cy, int radius)
-        {
-            Rectangle coinRect = new Rectangle(cx - radius, cy - radius, radius * 2, radius * 2);
-            using (SolidBrush fillBrush = new SolidBrush(colorGold))
-            using (Pen borderPen = new Pen(Color.FromArgb(255, 224, 128), 1.5f))
-            using (SolidBrush innerBrush = new SolidBrush(colorGoldDark))
-            {
-                g.FillEllipse(fillBrush, coinRect);
-                g.DrawEllipse(borderPen, coinRect);
-                g.FillEllipse(innerBrush, cx - 4, cy - 4, 8, 8);
+                g.DrawString("Single-Screen Tactical UI | Pure Procedural GDI+ Vector Art", footerFont, textBrush, rightRect, rightFormat);
             }
         }
 
         private void DrawStatPill(Graphics g, Rectangle rect, string text, Color textColor)
         {
-            DrawRoundedBox(g, rect, 5, Color.FromArgb(24, 30, 41), Color.FromArgb(52, 64, 82), 1f);
+            EntityGraphics.DrawRoundedBox(g, rect, 5, Color.FromArgb(24, 30, 41), Color.FromArgb(52, 64, 82), 1f);
             using (Font pillFont = new Font("Segoe UI", 8.5f, FontStyle.Bold))
             using (SolidBrush brush = new SolidBrush(textColor))
             using (StringFormat sf = CreateCenterFormat())
@@ -886,13 +726,13 @@ namespace RogueCards
             switch (category)
             {
                 case CardCategory.Melee:
-                    return Color.FromArgb(186, 58, 58);
+                    return Color.FromArgb(192, 58, 58);
                 case CardCategory.Ranged:
-                    return Color.FromArgb(54, 146, 86);
+                    return Color.FromArgb(52, 152, 88);
                 case CardCategory.Movement:
-                    return Color.FromArgb(52, 118, 186);
+                    return Color.FromArgb(52, 122, 194);
                 case CardCategory.Special:
-                    return Color.FromArgb(132, 74, 178);
+                    return Color.FromArgb(142, 78, 190);
                 default:
                     return Color.FromArgb(90, 100, 120);
             }
@@ -923,72 +763,13 @@ namespace RogueCards
             float fontSize,
             Color textColor)
         {
-            using (GraphicsPath path = CreateRoundedRectPath(bounds, 8))
-            using (LinearGradientBrush bgBrush = new LinearGradientBrush(bounds, topColor, bottomColor, LinearGradientMode.Vertical))
-            using (Pen borderPen = new Pen(borderColor, 1.5f))
+            EntityGraphics.DrawGradientRoundedBox(g, bounds, 8, topColor, bottomColor, borderColor, 1.5f);
             using (Font btnFont = new Font("Segoe UI", fontSize, FontStyle.Bold))
             using (SolidBrush textBrush = new SolidBrush(textColor))
             using (StringFormat sf = CreateCenterFormat())
             {
-                g.FillPath(bgBrush, path);
-                g.DrawPath(borderPen, path);
                 g.DrawString(label, btnFont, textBrush, bounds, sf);
             }
-        }
-
-        private static void DrawRoundedBox(
-            Graphics g,
-            Rectangle bounds,
-            int radius,
-            Color fillColor,
-            Color borderColor,
-            float borderWidth)
-        {
-            using (GraphicsPath path = CreateRoundedRectPath(bounds, radius))
-            {
-                if (fillColor.A > 0)
-                {
-                    using (SolidBrush fillBrush = new SolidBrush(fillColor))
-                    {
-                        g.FillPath(fillBrush, path);
-                    }
-                }
-
-                if (borderWidth > 0f && borderColor.A > 0)
-                {
-                    using (Pen borderPen = new Pen(borderColor, borderWidth))
-                    {
-                        g.DrawPath(borderPen, path);
-                    }
-                }
-            }
-        }
-
-        private static GraphicsPath CreateRoundedRectPath(Rectangle bounds, int radius)
-        {
-            GraphicsPath path = new GraphicsPath();
-            int diameter = radius * 2;
-
-            path.AddArc(bounds.X, bounds.Y, diameter, diameter, 180, 90);
-            path.AddArc(bounds.Right - diameter, bounds.Y, diameter, diameter, 270, 90);
-            path.AddArc(bounds.Right - diameter, bounds.Bottom - diameter, diameter, diameter, 0, 90);
-            path.AddArc(bounds.X, bounds.Bottom - diameter, diameter, diameter, 90, 90);
-            path.CloseFigure();
-
-            return path;
-        }
-
-        private static GraphicsPath CreateTopRoundedRectPath(Rectangle bounds, int radius)
-        {
-            GraphicsPath path = new GraphicsPath();
-            int diameter = radius * 2;
-
-            path.AddArc(bounds.X, bounds.Y, diameter, diameter, 180, 90);
-            path.AddArc(bounds.Right - diameter, bounds.Y, diameter, diameter, 270, 90);
-            path.AddLine(bounds.Right, bounds.Bottom, bounds.X, bounds.Bottom);
-            path.CloseFigure();
-
-            return path;
         }
 
         private static StringFormat CreateCenterFormat()

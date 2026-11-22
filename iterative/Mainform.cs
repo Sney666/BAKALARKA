@@ -27,6 +27,14 @@ namespace RogueCards
         private float specialAnimProgress;
         private int lastSeenSpecialSeqId;
 
+        private GridPos currentAimDirection;
+        private bool hasAimDirection;
+        private int dragSourceIndex;
+        private int dragHoverTargetIndex;
+
+        private int selectedUpgradeModifierIndex;
+        private int selectedUpgradeCardInstanceId;
+
         private readonly Color colorBackground = Color.FromArgb(18, 22, 29);
         private readonly Color colorPanel = Color.FromArgb(28, 34, 45);
         private readonly Color colorPanelBorder = Color.FromArgb(58, 69, 88);
@@ -69,6 +77,10 @@ namespace RogueCards
             backToMenuButtonRect = new Rectangle(28, 18, 180, 38);
             specialAnimProgress = 0f;
             lastSeenSpecialSeqId = 0;
+            dragSourceIndex = -1;
+            dragHoverTargetIndex = -1;
+            selectedUpgradeModifierIndex = -1;
+            selectedUpgradeCardInstanceId = -1;
 
             if (dataRepository.ParseErrors.Count > 0)
             {
@@ -81,6 +93,7 @@ namespace RogueCards
 
             MouseMove += OnFormMouseMove;
             MouseDown += OnFormMouseDown;
+            MouseUp += OnFormMouseUp;
             KeyDown += OnFormKeyDown;
         }
 
@@ -102,7 +115,8 @@ namespace RogueCards
                 key == Keys.Down ||
                 key == Keys.Left ||
                 key == Keys.Right ||
-                key == Keys.Space)
+                key == Keys.Space ||
+                key == Keys.Enter)
             {
                 return true;
             }
@@ -138,8 +152,32 @@ namespace RogueCards
             if (currentScreen != nextScreen)
             {
                 currentScreen = nextScreen;
+                dragSourceIndex = -1;
+                dragHoverTargetIndex = -1;
+                hasAimDirection = false;
                 Cursor = Cursors.Default;
+
+                if (nextScreen == GameScreen.RewardUpgrade)
+                {
+                    selectedUpgradeModifierIndex = -1;
+                    selectedUpgradeCardInstanceId = -1;
+                }
+
                 Invalidate();
+            }
+        }
+
+        private void SyncAimingScreenState()
+        {
+            if (gameEngine.IsExecutingQueue)
+            {
+                currentScreen = GameScreen.Aiming;
+                hasAimDirection = false;
+            }
+            else if (currentScreen == GameScreen.Aiming)
+            {
+                currentScreen = GameScreen.Arena;
+                hasAimDirection = false;
             }
         }
 
@@ -154,6 +192,27 @@ namespace RogueCards
             }
             else if (currentScreen == GameScreen.Arena)
             {
+                if (dragSourceIndex >= 0)
+                {
+                    dragHoverTargetIndex = arenaRenderer.HitTestEquippedSlotIndex(mouseLocation);
+                    Cursor = Cursors.SizeAll;
+                }
+                else
+                {
+                    ArenaHitbox hit = arenaRenderer.HitTest(mouseLocation);
+                    Cursor = (hit != null && hit.IsEnabled) ? Cursors.Hand : Cursors.Default;
+                }
+            }
+            else if (currentScreen == GameScreen.Aiming)
+            {
+                UpdateMouseAimPreview();
+                ArenaHitbox hit = arenaRenderer.HitTest(mouseLocation);
+                Cursor = (hit != null && hit.IsEnabled) ? Cursors.Cross : Cursors.Default;
+            }
+            else if (currentScreen == GameScreen.StartingDraft ||
+                     currentScreen == GameScreen.RewardCard ||
+                     currentScreen == GameScreen.RewardUpgrade)
+            {
                 ArenaHitbox hit = arenaRenderer.HitTest(mouseLocation);
                 Cursor = (hit != null && hit.IsEnabled) ? Cursors.Hand : Cursors.Default;
             }
@@ -165,8 +224,43 @@ namespace RogueCards
             Invalidate();
         }
 
+        private void UpdateMouseAimPreview()
+        {
+            CardInstance aimingCard = gameEngine.CurrentAimingCard;
+            if (aimingCard == null || gameEngine.CurrentRun == null)
+            {
+                hasAimDirection = false;
+                return;
+            }
+
+            if (arenaRenderer.TryGetTileAtPoint(mouseLocation, out GridPos hoverTile))
+            {
+                if (CardResolver.TryGetDirectionFromHover(
+                    gameEngine.CurrentRun.Player.Position,
+                    hoverTile,
+                    aimingCard.Definition.Targeting,
+                    out GridPos dir))
+                {
+                    currentAimDirection = dir;
+                    hasAimDirection = true;
+                    return;
+                }
+            }
+        }
+
         private void OnFormMouseDown(object sender, MouseEventArgs e)
         {
+            if (e.Button == MouseButtons.Right && currentScreen == GameScreen.Aiming)
+            {
+                if (gameEngine.CancelAimingIfPossible())
+                {
+                    SyncAimingScreenState();
+                    Invalidate();
+                }
+
+                return;
+            }
+
             if (e.Button != MouseButtons.Left)
             {
                 return;
@@ -178,15 +272,45 @@ namespace RogueCards
                 return;
             }
 
-            if (currentScreen == GameScreen.Arena)
+            if (currentScreen == GameScreen.Arena || currentScreen == GameScreen.Aiming)
             {
-                HandleArenaClick(e.Location);
+                HandleArenaMouseDown(e.Location);
+                return;
+            }
+
+            if (currentScreen == GameScreen.StartingDraft ||
+                currentScreen == GameScreen.RewardCard ||
+                currentScreen == GameScreen.RewardUpgrade)
+            {
+                HandleOverlayClick(e.Location);
                 return;
             }
 
             if (backToMenuButtonRect.Contains(e.Location))
             {
                 SetScreen(GameScreen.Menu);
+            }
+        }
+
+        private void OnFormMouseUp(object sender, MouseEventArgs e)
+        {
+            if (e.Button != MouseButtons.Left)
+            {
+                return;
+            }
+
+            if (currentScreen == GameScreen.Arena && dragSourceIndex >= 0)
+            {
+                int dropTarget = arenaRenderer.HitTestEquippedSlotIndex(e.Location);
+                if (dropTarget >= 0 && dropTarget != dragSourceIndex)
+                {
+                    gameEngine.ReorderEquippedCard(dragSourceIndex, dropTarget);
+                }
+
+                dragSourceIndex = -1;
+                dragHoverTargetIndex = -1;
+                Cursor = Cursors.Default;
+                Invalidate();
             }
         }
 
@@ -209,7 +333,7 @@ namespace RogueCards
                     gameEngine.StartNewRun();
                     specialAnimProgress = 0f;
                     lastSeenSpecialSeqId = gameEngine.LastSpecialSequenceId;
-                    SetScreen(GameScreen.Arena);
+                    SetScreen(GameScreen.StartingDraft);
                     break;
 
                 case MenuActionType.ContinueRun:
@@ -218,9 +342,12 @@ namespace RogueCards
                         if (gameEngine.CurrentRun == null)
                         {
                             gameEngine.StartNewRun();
+                            SetScreen(GameScreen.StartingDraft);
                         }
-
-                        SetScreen(GameScreen.Arena);
+                        else
+                        {
+                            SetScreen(GameScreen.Arena);
+                        }
                     }
                     else
                     {
@@ -250,7 +377,7 @@ namespace RogueCards
             }
         }
 
-        private void HandleArenaClick(Point location)
+        private void HandleArenaMouseDown(Point location)
         {
             ArenaHitbox hit = arenaRenderer.HitTest(location);
             if (hit == null || !hit.IsEnabled)
@@ -263,6 +390,58 @@ namespace RogueCards
                 case ArenaActionType.MoveToTile:
                     if (gameEngine.TryMovePlayerToTile(hit.TilePos))
                     {
+                        Invalidate();
+                    }
+                    break;
+
+                case ArenaActionType.AimTile:
+                    CardInstance aimingCard = gameEngine.CurrentAimingCard;
+                    if (aimingCard != null &&
+                        CardResolver.TryGetDirectionFromHover(
+                            gameEngine.CurrentRun.Player.Position,
+                            hit.TilePos,
+                            aimingCard.Definition.Targeting,
+                            out GridPos aimDir))
+                    {
+                        if (gameEngine.ConfirmAimDirection(aimDir))
+                        {
+                            SyncAimingScreenState();
+                            Invalidate();
+                        }
+                    }
+                    break;
+
+                case ArenaActionType.EquipHandCard:
+                    if (gameEngine.TryEquipCardFromHand(hit.Index))
+                    {
+                        Invalidate();
+                    }
+                    break;
+
+                case ArenaActionType.EquippedSlot:
+                    if (currentScreen == GameScreen.Arena &&
+                        hit.Index >= 0 &&
+                        hit.Index < gameEngine.CurrentRun.Player.EquippedQueue.Count)
+                    {
+                        dragSourceIndex = hit.Index;
+                        dragHoverTargetIndex = hit.Index;
+                        Cursor = Cursors.SizeAll;
+                        Invalidate();
+                    }
+                    break;
+
+                case ArenaActionType.PlayQueue:
+                    if (gameEngine.BeginPlayEquippedQueue())
+                    {
+                        SyncAimingScreenState();
+                        Invalidate();
+                    }
+                    break;
+
+                case ArenaActionType.CancelAim:
+                    if (gameEngine.CancelAimingIfPossible())
+                    {
+                        SyncAimingScreenState();
                         Invalidate();
                     }
                     break;
@@ -285,6 +464,83 @@ namespace RogueCards
                 case ArenaActionType.SaveAndExit:
                     menuStatusMessage = "Returned to Main Menu.";
                     SetScreen(GameScreen.Menu);
+                    break;
+            }
+        }
+
+        private void HandleOverlayClick(Point location)
+        {
+            ArenaHitbox hit = arenaRenderer.HitTest(location);
+            if (hit == null || !hit.IsEnabled)
+            {
+                return;
+            }
+
+            switch (hit.ActionType)
+            {
+                case ArenaActionType.SaveAndExit:
+                    menuStatusMessage = "Returned to Main Menu.";
+                    SetScreen(GameScreen.Menu);
+                    break;
+
+                case ArenaActionType.DraftToggleCard:
+                    if (gameEngine.ToggleStartingDraftSelection(hit.TargetId))
+                    {
+                        Invalidate();
+                    }
+                    break;
+
+                case ArenaActionType.DraftConfirm:
+                    if (gameEngine.ConfirmStartingDraft())
+                    {
+                        SetScreen(GameScreen.Arena);
+                    }
+                    break;
+
+                case ArenaActionType.RewardPickCard:
+                    if (gameEngine.PickRewardCard(hit.TargetId))
+                    {
+                        SetScreen(GameScreen.Arena);
+                    }
+                    break;
+
+                case ArenaActionType.RewardSelectModifier:
+                    selectedUpgradeModifierIndex = hit.Index;
+                    Invalidate();
+                    break;
+
+                case ArenaActionType.RewardSelectTargetCard:
+                    selectedUpgradeCardInstanceId = hit.Index;
+                    Invalidate();
+                    break;
+
+                case ArenaActionType.RewardApplyUpgrade:
+                    PendingRewardState reward = gameEngine.CurrentRun?.PendingReward;
+                    if (reward != null &&
+                        selectedUpgradeModifierIndex >= 0 &&
+                        selectedUpgradeModifierIndex < reward.UpgradeOptions.Count)
+                    {
+                        UpgradeModifierType modType = reward.UpgradeOptions[selectedUpgradeModifierIndex].ModifierType;
+                        if (gameEngine.ApplyUpgradeModifierToCard(modType, selectedUpgradeCardInstanceId))
+                        {
+                            SetScreen(GameScreen.Arena);
+                        }
+                    }
+                    break;
+
+                case ArenaActionType.RewardReroll:
+                    if (gameEngine.TryRerollCurrentReward())
+                    {
+                        selectedUpgradeModifierIndex = -1;
+                        Invalidate();
+                    }
+                    break;
+
+                case ArenaActionType.RewardSkip:
+                    if (gameEngine.SkipCurrentReward())
+                    {
+                        SetScreen(GameScreen.Arena);
+                    }
                     break;
             }
         }
@@ -360,6 +616,12 @@ namespace RogueCards
 
         private void OnFormKeyDown(object sender, KeyEventArgs e)
         {
+            if (currentScreen == GameScreen.Aiming)
+            {
+                HandleAimingKeyDown(e.KeyCode);
+                return;
+            }
+
             if (e.KeyCode == Keys.Escape && currentScreen != GameScreen.Menu)
             {
                 SetScreen(GameScreen.Menu);
@@ -404,9 +666,106 @@ namespace RogueCards
                     CheckTriggerSpecialAnimation();
                 }
             }
-
-            if (acted || key == Keys.E)
+            else if (key == Keys.Enter)
             {
+                acted = gameEngine.BeginPlayEquippedQueue();
+                if (acted)
+                {
+                    SyncAimingScreenState();
+                }
+            }
+
+            if (acted || key == Keys.E || key == Keys.Enter)
+            {
+                Invalidate();
+            }
+        }
+
+        private void HandleAimingKeyDown(Keys key)
+        {
+            if (key == Keys.Escape)
+            {
+                if (gameEngine.CancelAimingIfPossible())
+                {
+                    SyncAimingScreenState();
+                    Invalidate();
+                }
+                return;
+            }
+
+            CardInstance aimingCard = gameEngine.CurrentAimingCard;
+            if (aimingCard == null)
+            {
+                SyncAimingScreenState();
+                Invalidate();
+                return;
+            }
+
+            if ((key == Keys.Enter || key == Keys.Space) && hasAimDirection)
+            {
+                if (gameEngine.ConfirmAimDirection(currentAimDirection))
+                {
+                    SyncAimingScreenState();
+                    Invalidate();
+                }
+                return;
+            }
+
+            GridPos? pressedDir = null;
+            if (aimingCard.Definition.Targeting == TargetingType.Orthogonal)
+            {
+                if (key == Keys.W || key == Keys.Up)
+                {
+                    pressedDir = new GridPos(0, -1);
+                }
+                else if (key == Keys.S || key == Keys.Down)
+                {
+                    pressedDir = new GridPos(0, 1);
+                }
+                else if (key == Keys.A || key == Keys.Left)
+                {
+                    pressedDir = new GridPos(-1, 0);
+                }
+                else if (key == Keys.D || key == Keys.Right)
+                {
+                    pressedDir = new GridPos(1, 0);
+                }
+            }
+            else if (aimingCard.Definition.Targeting == TargetingType.Diagonal)
+            {
+                if (key == Keys.Q)
+                {
+                    pressedDir = new GridPos(-1, -1);
+                }
+                else if (key == Keys.E)
+                {
+                    pressedDir = new GridPos(1, -1);
+                }
+                else if (key == Keys.Z)
+                {
+                    pressedDir = new GridPos(-1, 1);
+                }
+                else if (key == Keys.C)
+                {
+                    pressedDir = new GridPos(1, 1);
+                }
+            }
+
+            if (pressedDir.HasValue)
+            {
+                if (hasAimDirection && currentAimDirection == pressedDir.Value)
+                {
+                    if (gameEngine.ConfirmAimDirection(currentAimDirection))
+                    {
+                        SyncAimingScreenState();
+                    }
+                }
+                else
+                {
+                    currentAimDirection = pressedDir.Value;
+                    hasAimDirection = true;
+                }
+
                 Invalidate();
             }
         }
@@ -431,14 +790,45 @@ namespace RogueCards
                 return;
             }
 
-            if (currentScreen == GameScreen.Arena)
+            if (currentScreen == GameScreen.StartingDraft)
             {
-                arenaRenderer.Render(
+                arenaRenderer.RenderStartingDraft(g, gameEngine, profile, mouseLocation);
+                return;
+            }
+
+            if (currentScreen == GameScreen.RewardCard)
+            {
+                arenaRenderer.RenderRewardCard(g, gameEngine, profile, mouseLocation);
+                return;
+            }
+
+            if (currentScreen == GameScreen.RewardUpgrade)
+            {
+                arenaRenderer.RenderRewardUpgrade(
                     g,
                     gameEngine,
                     profile,
                     mouseLocation,
-                    specialAnimProgress);
+                    selectedUpgradeModifierIndex,
+                    selectedUpgradeCardInstanceId);
+                return;
+            }
+
+            if (currentScreen == GameScreen.Arena || currentScreen == GameScreen.Aiming)
+            {
+                AimPreviewResult preview = (currentScreen == GameScreen.Aiming && hasAimDirection)
+                    ? gameEngine.GetAimPreview(currentAimDirection)
+                    : null;
+
+                arenaRenderer.RenderArena(
+                    g,
+                    gameEngine,
+                    profile,
+                    mouseLocation,
+                    specialAnimProgress,
+                    preview,
+                    dragSourceIndex,
+                    dragHoverTargetIndex);
                 return;
             }
 

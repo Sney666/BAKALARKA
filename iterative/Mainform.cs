@@ -3,6 +3,7 @@ using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Windows.Forms;
+using Timer = System.Windows.Forms.Timer;
 
 namespace RogueCards
 {
@@ -15,11 +16,16 @@ namespace RogueCards
         private readonly GameDatabase database;
         private readonly PlayerProfile profile;
         private readonly MenuRenderer menuRenderer;
+        private readonly GameEngine gameEngine;
+        private readonly ArenaRenderer arenaRenderer;
+        private readonly Timer animationTimer;
 
         private GameScreen currentScreen;
         private Point mouseLocation;
         private string menuStatusMessage;
         private Rectangle backToMenuButtonRect;
+        private float specialAnimProgress;
+        private int lastSeenSpecialSeqId;
 
         private readonly Color colorBackground = Color.FromArgb(18, 22, 29);
         private readonly Color colorPanel = Color.FromArgb(28, 34, 45);
@@ -52,9 +58,17 @@ namespace RogueCards
             database = dataRepository.InitializeAndLoad();
             profile = dataRepository.CreateDefaultProfile(database);
             menuRenderer = new MenuRenderer();
+            gameEngine = new GameEngine(database, profile);
+            arenaRenderer = new ArenaRenderer();
+
+            animationTimer = new Timer();
+            animationTimer.Interval = 33;
+            animationTimer.Tick += OnAnimationTick;
 
             currentScreen = GameScreen.Menu;
             backToMenuButtonRect = new Rectangle(28, 18, 180, 38);
+            specialAnimProgress = 0f;
+            lastSeenSpecialSeqId = 0;
 
             if (dataRepository.ParseErrors.Count > 0)
             {
@@ -68,6 +82,55 @@ namespace RogueCards
             MouseMove += OnFormMouseMove;
             MouseDown += OnFormMouseDown;
             KeyDown += OnFormKeyDown;
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                animationTimer.Stop();
+                animationTimer.Dispose();
+            }
+
+            base.Dispose(disposing);
+        }
+
+        protected override bool IsInputKey(Keys keyData)
+        {
+            Keys key = keyData & Keys.KeyCode;
+            if (key == Keys.Up ||
+                key == Keys.Down ||
+                key == Keys.Left ||
+                key == Keys.Right ||
+                key == Keys.Space)
+            {
+                return true;
+            }
+
+            return base.IsInputKey(keyData);
+        }
+
+        private void OnAnimationTick(object sender, EventArgs e)
+        {
+            if (specialAnimProgress > 0f)
+            {
+                specialAnimProgress = Math.Max(0f, specialAnimProgress - 0.06f);
+                Invalidate();
+            }
+            else
+            {
+                animationTimer.Stop();
+            }
+        }
+
+        private void CheckTriggerSpecialAnimation()
+        {
+            if (gameEngine.LastSpecialSequenceId != lastSeenSpecialSeqId)
+            {
+                lastSeenSpecialSeqId = gameEngine.LastSpecialSequenceId;
+                specialAnimProgress = 1f;
+                animationTimer.Start();
+            }
         }
 
         private void SetScreen(GameScreen nextScreen)
@@ -89,6 +152,11 @@ namespace RogueCards
                 MenuHitbox hit = menuRenderer.HitTest(mouseLocation);
                 Cursor = (hit != null && hit.IsEnabled) ? Cursors.Hand : Cursors.Default;
             }
+            else if (currentScreen == GameScreen.Arena)
+            {
+                ArenaHitbox hit = arenaRenderer.HitTest(mouseLocation);
+                Cursor = (hit != null && hit.IsEnabled) ? Cursors.Hand : Cursors.Default;
+            }
             else
             {
                 Cursor = backToMenuButtonRect.Contains(mouseLocation) ? Cursors.Hand : Cursors.Default;
@@ -107,6 +175,12 @@ namespace RogueCards
             if (currentScreen == GameScreen.Menu)
             {
                 HandleMenuClick(e.Location);
+                return;
+            }
+
+            if (currentScreen == GameScreen.Arena)
+            {
+                HandleArenaClick(e.Location);
                 return;
             }
 
@@ -132,12 +206,20 @@ namespace RogueCards
 
                 case MenuActionType.StartNewRun:
                     menuStatusMessage = string.Empty;
+                    gameEngine.StartNewRun();
+                    specialAnimProgress = 0f;
+                    lastSeenSpecialSeqId = gameEngine.LastSpecialSequenceId;
                     SetScreen(GameScreen.Arena);
                     break;
 
                 case MenuActionType.ContinueRun:
                     if (hit.IsEnabled && dataRepository.HasActiveRunSave())
                     {
+                        if (gameEngine.CurrentRun == null)
+                        {
+                            gameEngine.StartNewRun();
+                        }
+
                         SetScreen(GameScreen.Arena);
                     }
                     else
@@ -164,6 +246,45 @@ namespace RogueCards
                         ? "Area 2 is unlocked and reserved for future expansion!"
                         : "Defeat the Wave 10 Boss (Viking Chief) to unlock Area 2.";
                     Invalidate();
+                    break;
+            }
+        }
+
+        private void HandleArenaClick(Point location)
+        {
+            ArenaHitbox hit = arenaRenderer.HitTest(location);
+            if (hit == null || !hit.IsEnabled)
+            {
+                return;
+            }
+
+            switch (hit.ActionType)
+            {
+                case ArenaActionType.MoveToTile:
+                    if (gameEngine.TryMovePlayerToTile(hit.TilePos))
+                    {
+                        Invalidate();
+                    }
+                    break;
+
+                case ArenaActionType.WaitTurn:
+                    if (gameEngine.WaitTurn())
+                    {
+                        Invalidate();
+                    }
+                    break;
+
+                case ArenaActionType.UseSpecial:
+                    if (gameEngine.TryUseSpecial())
+                    {
+                        CheckTriggerSpecialAnimation();
+                    }
+                    Invalidate();
+                    break;
+
+                case ArenaActionType.SaveAndExit:
+                    menuStatusMessage = "Returned to Main Menu.";
+                    SetScreen(GameScreen.Menu);
                     break;
             }
         }
@@ -242,6 +363,51 @@ namespace RogueCards
             if (e.KeyCode == Keys.Escape && currentScreen != GameScreen.Menu)
             {
                 SetScreen(GameScreen.Menu);
+                return;
+            }
+
+            if (currentScreen == GameScreen.Arena)
+            {
+                HandleArenaKeyDown(e.KeyCode);
+            }
+        }
+
+        private void HandleArenaKeyDown(Keys key)
+        {
+            bool acted = false;
+
+            if (key == Keys.W || key == Keys.Up)
+            {
+                acted = gameEngine.TryMovePlayer(0, -1);
+            }
+            else if (key == Keys.S || key == Keys.Down)
+            {
+                acted = gameEngine.TryMovePlayer(0, 1);
+            }
+            else if (key == Keys.A || key == Keys.Left)
+            {
+                acted = gameEngine.TryMovePlayer(-1, 0);
+            }
+            else if (key == Keys.D || key == Keys.Right)
+            {
+                acted = gameEngine.TryMovePlayer(1, 0);
+            }
+            else if (key == Keys.Space)
+            {
+                acted = gameEngine.WaitTurn();
+            }
+            else if (key == Keys.E)
+            {
+                acted = gameEngine.TryUseSpecial();
+                if (acted)
+                {
+                    CheckTriggerSpecialAnimation();
+                }
+            }
+
+            if (acted || key == Keys.E)
+            {
+                Invalidate();
             }
         }
 
@@ -262,6 +428,17 @@ namespace RogueCards
                     dataRepository.HasActiveRunSave(),
                     mouseLocation,
                     menuStatusMessage);
+                return;
+            }
+
+            if (currentScreen == GameScreen.Arena)
+            {
+                arenaRenderer.Render(
+                    g,
+                    gameEngine,
+                    profile,
+                    mouseLocation,
+                    specialAnimProgress);
                 return;
             }
 

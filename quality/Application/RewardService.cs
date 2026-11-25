@@ -8,12 +8,12 @@ namespace RogueCards.Application
     {
         private static readonly UpgradeModifierType[] AllModifiers =
         {
-            UpgradeModifierType.PlusOneDamage,
-            UpgradeModifierType.PlusTwoDamage,
-            UpgradeModifierType.MinusOneCooldown,
-            UpgradeModifierType.MinusTwoCooldown,
-            UpgradeModifierType.Poison
-        };
+UpgradeModifierType.PlusOneDamage,
+UpgradeModifierType.PlusTwoDamage,
+UpgradeModifierType.MinusOneCooldown,
+UpgradeModifierType.MinusTwoCooldown,
+UpgradeModifierType.Poison
+};
         private readonly Random _random;
 
         public RewardService(Random? random = null)
@@ -45,7 +45,6 @@ namespace RogueCards.Application
 
         public void Reroll(PendingRewardState reward, PlayerProfile profile, GameDatabase db)
         {
-            reward.RerollCount += 1;
             reward.OfferedWeaponIds.Clear();
             reward.SelectedStartingWeaponIds.Clear();
             reward.OfferedUpgrades.Clear();

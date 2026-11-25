@@ -8,7 +8,7 @@ namespace RogueCards.Application
     {
         private const int MaxEquippedCards = 3;
         private const int PoisonDurationTurns = 3;
-    private readonly IGameDataRepository _repository;
+        private readonly IGameDataRepository _repository;
         private readonly IRunPersistence _persistence;
         private readonly ICombatLogger _combatLogger;
         private readonly CardEffectRegistry _cardEffects;
@@ -26,6 +26,14 @@ namespace RogueCards.Application
 
         public PlayerProfile Profile { get; }
 
+        public RewardService Rewards
+        {
+            get
+            {
+                return _rewardService;
+            }
+        }
+
         public string StartupWarning { get; }
 
         public ActiveRunState? CurrentRun { get; private set; }
@@ -37,6 +45,14 @@ namespace RogueCards.Application
             get
             {
                 return _isExecutingQueue ? _queueExecutionIndex : -1;
+            }
+        }
+
+        public bool CanCancelAiming
+        {
+            get
+            {
+                return _isExecutingQueue && _queueExecutionIndex == 0 && CurrentAimingCard != null;
             }
         }
 
@@ -111,6 +127,29 @@ namespace RogueCards.Application
             }
 
             return false;
+        }
+
+        public int GetEffectiveCardDamage(CardInstance card)
+        {
+            bool hasMelee = HasPermanentUpgrade(PermanentUpgradeType.MeleeTraining);
+            bool hasRanged = HasPermanentUpgrade(PermanentUpgradeType.RangedTraining);
+            return card.GetEffectiveDamage(hasMelee, hasRanged);
+        }
+
+        public int GetEffectiveCardMaxCooldown(CardInstance card)
+        {
+            bool hasSwiftBoots = HasPermanentUpgrade(PermanentUpgradeType.SwiftBoots);
+            return card.GetEffectiveMaxCooldown(hasSwiftBoots);
+        }
+
+        public CharacterDefinition GetSelectedCharacter()
+        {
+            return ResolveSelectedCharacter();
+        }
+
+        public CharacterDefinition GetCurrentRunCharacter()
+        {
+            return CurrentRun != null ? ResolveRunCharacter() : ResolveSelectedCharacter();
         }
 
         public IReadOnlyList<WeaponDefinition> GetNextUnlockableWeapons(int maxCount = 2)
@@ -373,7 +412,7 @@ namespace RogueCards.Application
 
         public bool CancelAiming()
         {
-            if (!_isExecutingQueue || _queueExecutionIndex > 0 || CurrentAimingCard == null)
+            if (!CanCancelAiming)
             {
                 return false;
             }
@@ -381,6 +420,37 @@ namespace RogueCards.Application
             ResetQueueExecutionState();
             Log("Cancelled card queue execution.");
             return true;
+        }
+
+        public GridPos? ResolveAimDirectionFromTile(GridPos targetTile)
+        {
+            if (CurrentRun == null || CurrentAimingCard == null || !targetTile.IsValid())
+            {
+                return null;
+            }
+
+            int dx = targetTile.X - CurrentRun.Player.Position.X;
+            int dy = targetTile.Y - CurrentRun.Player.Position.Y;
+
+            if (dx == 0 && dy == 0)
+            {
+                return null;
+            }
+
+            TargetingType targeting = CurrentAimingCard.Definition.Targeting;
+            if (targeting == TargetingType.Orthogonal)
+            {
+                return Math.Abs(dx) >= Math.Abs(dy)
+                    ? new GridPos(Math.Sign(dx), 0)
+                    : new GridPos(0, Math.Sign(dy));
+            }
+
+            if (targeting == TargetingType.Diagonal && dx != 0 && dy != 0)
+            {
+                return new GridPos(Math.Sign(dx), Math.Sign(dy));
+            }
+
+            return null;
         }
 
         public AimPreviewResult ComputeAimPreview(GridPos direction)
@@ -506,6 +576,7 @@ namespace RogueCards.Application
 
             Profile.Coins -= cost;
             _persistence.SaveProfile(Profile);
+            reward.RerollCount += 1;
             CurrentRun.UsedRerollInRun = true;
             _rewardService.Reroll(reward, Profile, Database);
             Log($"Rerolled reward choices for {cost} coins.");
@@ -818,6 +889,13 @@ namespace RogueCards.Application
                     continue;
                 }
 
+                if (!HasAnyValidDirectionForCard(card))
+                {
+                    Log($"Skipped {card.Definition.Name} because no valid target direction was available.");
+                    _queueExecutionIndex += 1;
+                    continue;
+                }
+
                 CurrentAimingCard = card;
                 return;
             }
@@ -825,16 +903,34 @@ namespace RogueCards.Application
             FinishQueueExecution();
         }
 
+        private bool HasAnyValidDirectionForCard(CardInstance card)
+        {
+            if (CurrentRun == null || !_cardEffects.TryGetEffect(card.Definition.EffectType, out ICardEffect? effect) || effect == null)
+            {
+                return false;
+            }
+
+            GridPos[] directions = card.Definition.Targeting == TargetingType.Diagonal
+                ? GridPos.DiagonalDirections
+                : GridPos.OrthogonalDirections;
+
+            foreach (GridPos dir in directions)
+            {
+                if (effect.ComputePreview(CurrentRun, card, dir).IsValid)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         private void ExecuteSingleCard(CardInstance card, ICardEffect effect, GridPos direction)
         {
-            bool hasMelee = HasPermanentUpgrade(PermanentUpgradeType.MeleeTraining);
-            bool hasRanged = HasPermanentUpgrade(PermanentUpgradeType.RangedTraining);
-            bool hasSwiftBoots = HasPermanentUpgrade(PermanentUpgradeType.SwiftBoots);
-
-            int damage = card.GetEffectiveDamage(hasMelee, hasRanged);
+            int damage = GetEffectiveCardDamage(card);
             effect.Execute(this, card, direction, damage);
 
-            card.CurrentCooldown = card.GetEffectiveMaxCooldown(hasSwiftBoots);
+            card.CurrentCooldown = GetEffectiveCardMaxCooldown(card);
             _cardIdsActivatedThisTurn.Add(card.InstanceId);
             _cardsPlayedThisTurn += 1;
             WeaponUsed?.Invoke(card.Definition.Id);

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using RogueCards.Application.Cards;
 using RogueCards.Domain;
 namespace RogueCards.Application
 {
@@ -8,6 +9,7 @@ namespace RogueCards.Application
         private readonly Dictionary<WeaponEffectType, ICardEffect> _effects = new Dictionary<WeaponEffectType, ICardEffect>();
         public CardEffectRegistry()
         {
+            RegisterDefaults();
         }
 
         public CardEffectRegistry(IEnumerable<ICardEffect> effects)
@@ -41,6 +43,20 @@ namespace RogueCards.Application
             }
 
             throw new InvalidOperationException($"No card effect is registered for '{type}'.");
+        }
+
+        private void RegisterDefaults()
+        {
+            Register(new SingleAdjacentEffect());
+            Register(new KnockbackAdjacentEffect());
+            Register(new ArcSweepEffect());
+            Register(new LineProjectileEffect(WeaponEffectType.ThrowingAxe, TargetingType.Orthogonal));
+            Register(new LineProjectileEffect(WeaponEffectType.HuntingBow, TargetingType.Diagonal));
+            Register(new PierceTwoLineEffect());
+            Register(new PlaceBearTrapEffect());
+            Register(new HarpoonPullEffect());
+            Register(new DiagonalDashEffect());
+            Register(new SlideTwoEffect());
         }
     }
 }

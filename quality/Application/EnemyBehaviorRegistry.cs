@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using RogueCards.Application.Enemies;
 using RogueCards.Domain;
 namespace RogueCards.Application
 {
@@ -8,6 +9,7 @@ namespace RogueCards.Application
         private readonly Dictionary<EnemyType, IEnemyBehavior> _behaviors = new Dictionary<EnemyType, IEnemyBehavior>();
         public EnemyBehaviorRegistry()
         {
+            RegisterDefaults();
         }
 
         public EnemyBehaviorRegistry(IEnumerable<IEnemyBehavior> behaviors)
@@ -41,6 +43,15 @@ namespace RogueCards.Application
             }
 
             throw new InvalidOperationException($"No enemy behavior is registered for '{type}'.");
+        }
+
+        private void RegisterDefaults()
+        {
+            Register(new PawnBehavior());
+            Register(new ArcherBehavior());
+            Register(new SpearmanBehavior());
+            Register(new ShamanBehavior());
+            Register(new VikingChiefBehavior());
         }
     }
 }

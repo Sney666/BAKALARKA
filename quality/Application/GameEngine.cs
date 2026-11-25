@@ -1046,6 +1046,10 @@ namespace RogueCards.Application
                 {
                     ExecuteEnemyChargedAttack(enemy);
                 }
+                else
+                {
+                    Log($"{enemy.Type} continues charging {enemy.LockedAttackType} ({enemy.ChargeTurnsRemaining} turn remaining).");
+                }
 
                 return;
             }

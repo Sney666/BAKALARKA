@@ -26,6 +26,8 @@ namespace RogueCards.Application
 
         public PlayerProfile Profile { get; }
 
+        public AchievementService Achievements { get; }
+
         public RewardService Rewards
         {
             get
@@ -109,6 +111,7 @@ namespace RogueCards.Application
             Database = _repository.LoadAll();
             Profile = _persistence.LoadProfile(Database, out string warning);
             StartupWarning = warning;
+            Achievements = new AchievementService(Database, Profile, _persistence);
         }
 
         public bool HasActiveRunSave()
@@ -197,6 +200,7 @@ namespace RogueCards.Application
             Profile.Coins -= weapon.UnlockCost;
             Profile.UnlockedWeaponIds.Add(weapon.Id);
             _persistence.SaveProfile(Profile);
+            Achievements.EvaluateMenuUnlocks();
             MenuUnlockPurchased?.Invoke();
             return true;
         }
@@ -216,6 +220,7 @@ namespace RogueCards.Application
             Profile.Coins -= upgrade.Cost;
             Profile.UnlockedUpgradeIds.Add(upgrade.Id);
             _persistence.SaveProfile(Profile);
+            Achievements.EvaluateMenuUnlocks();
             MenuUnlockPurchased?.Invoke();
             return true;
         }
@@ -247,6 +252,7 @@ namespace RogueCards.Application
 
             CurrentRun = run;
             Log($"Started new run as {character.Name} ({run.Player.MaxHp} HP). Choose 2 starting cards.");
+            Achievements.RecordRunStarted();
             RunStarted?.Invoke();
             AutoSaveRun();
         }
@@ -607,6 +613,7 @@ namespace RogueCards.Application
             if (damage > 0)
             {
                 enemy.CurrentHp = Math.Max(0, enemy.CurrentHp - damage);
+                Achievements.RecordDamageDealt(damage);
                 DamageDealtToEnemy?.Invoke(damage);
                 Log($"{source} dealt {damage} damage to {enemy.Type} ({enemy.CurrentHp}/{enemy.MaxHp} HP).");
             }
@@ -933,6 +940,7 @@ namespace RogueCards.Application
             card.CurrentCooldown = GetEffectiveCardMaxCooldown(card);
             _cardIdsActivatedThisTurn.Add(card.InstanceId);
             _cardsPlayedThisTurn += 1;
+            Achievements.RecordWeaponUsed(card.Definition.Id);
             WeaponUsed?.Invoke(card.Definition.Id);
         }
 
@@ -950,6 +958,7 @@ namespace RogueCards.Application
 
             if (playedCount > 0)
             {
+                Achievements.RecordCardsPlayedInTurn(playedCount);
                 CardsPlayedInTurn?.Invoke(playedCount);
             }
 
@@ -997,6 +1006,7 @@ namespace RogueCards.Application
 
             CurrentRun.Player.IsImmuneThisTurn = false;
             CurrentRun.TurnNumber += 1;
+            Achievements.RecordTurnCompleted();
             TurnCompleted?.Invoke();
             ClearTurnActivationFlags();
 
@@ -1140,6 +1150,7 @@ namespace RogueCards.Application
                 enemy.ChargeTurnsRemaining = 0;
                 enemy.LockedTargetTiles.Clear();
                 enemy.LockedAttackType = string.Empty;
+                Achievements.RecordBearTrapStun();
                 BearTrapStunTriggered?.Invoke();
                 Log($"{enemy.Type} stepped on an armed Bear Trap and was stunned!");
                 DamageEnemy(enemy, hazard.Damage, false, "Bear Trap");
@@ -1162,6 +1173,7 @@ namespace RogueCards.Application
             _persistence.SaveProfile(Profile);
 
             Log($"{enemy.Type} was defeated! Earned {coinReward} coins.");
+            Achievements.RecordEnemyDefeated(enemy.Type, coinReward, friendlyFire);
             EnemyDefeated?.Invoke(enemy.Type, coinReward, friendlyFire);
         }
 
@@ -1179,6 +1191,7 @@ namespace RogueCards.Application
 
             int clearedWave = CurrentRun.CurrentWave;
             Log($"Wave {clearedWave} cleared!");
+            Achievements.RecordWaveCleared(clearedWave, CurrentRun.TookDamageInCurrentWave);
             WaveCleared?.Invoke(clearedWave, CurrentRun.TookDamageInCurrentWave);
 
             WaveDefinition? waveDef = Database.Waves.FirstOrDefault(w => w.WaveNumber == clearedWave);
@@ -1207,6 +1220,7 @@ namespace RogueCards.Application
             Run.TookDamageInCurrentWave = false;
             Run.Enemies.Clear();
             Run.Hazards.RemoveAll(h => h.Type == HazardType.PoisonPool);
+            Achievements.RecordWaveReached(Run.CurrentWave);
             SpawnWave(Run.CurrentWave);
             AutoSaveRun();
         }
@@ -1257,6 +1271,7 @@ namespace RogueCards.Application
             _persistence.SaveProfile(Profile);
             _persistence.ClearActiveRunSave();
             Log(Run.GameOverReason);
+            Achievements.RecordRunWon(Run.UsedRerollInRun);
             RunWon?.Invoke(Run.UsedRerollInRun);
         }
 
